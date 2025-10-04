@@ -1,0 +1,21 @@
+@import "tailwindcss";
+@plugin "flowbite-react/plugin/tailwindcss";
+@source "../.flowbite-react/class-list.json";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --color-primary-dark: #3e0703;
+  --color-primary: #8c1007;
+  --color-primary-light: #fff0c4;
+}
+
+body {
+  font-family: "Montserrat", sans-serif;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
