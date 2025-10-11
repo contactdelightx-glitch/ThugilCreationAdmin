@@ -88,7 +88,13 @@ export async function getTodaysDesigns() {
     },
   });
 }
-
+export async function createDesign(data: object) {
+  return fetch(`${API_BASE_URL}/designs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+}
 // ---------- IMAGES ----------
 export async function getAllStoreImages(page: number = 1, limit: number = 50) {
   return fetch(`${API_BASE_URL}/images?page=${page}&limit=${limit}`, {
