@@ -112,8 +112,10 @@ export default function DesignList() {
     }
   };
 
-  const getSareeStyleDisplay = (style: string) =>
-    style.charAt(0).toUpperCase() + style.slice(1);
+  const getSareeStyleDisplay = (style: string | null | undefined) => {
+    if (!style) return '';
+    return style.charAt(0).toUpperCase() + style.slice(1);
+  };
 
   const getPageNumbers = () => {
     const pages = [];
