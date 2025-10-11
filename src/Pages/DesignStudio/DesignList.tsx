@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,7 +23,7 @@ export interface Design {
   hooks: number;
   image_type: string;
   image_url: string;
-  label: string;
+  label: string | null | undefined;
   listing_rate: string;
   original_image_url: string;
   ppi: number;
@@ -57,31 +57,36 @@ export default function DesignList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
 
-  const fetchDesigns = async (page: number, limit: number = itemsPerPage) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await getDesigns(page, limit);
-      if (!response.ok) throw new Error("Failed to fetch designs");
-      const contentType = response.headers.get("content-type");
-      if (!contentType?.includes("application/json")) {
-        throw new Error("Server responded with non-JSON content.");
+  const fetchDesigns = useCallback(
+    async (page: number, limit: number = itemsPerPage) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await getDesigns(page, limit);
+        if (!response.ok) throw new Error("Failed to fetch designs");
+        const contentType = response.headers.get("content-type");
+        if (!contentType?.includes("application/json")) {
+          throw new Error("Server responded with non-JSON content.");
+        }
+        const data: PaginationResponse = await response.json();
+        setDesigns(data.designs || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || page);
+        setTotalPages(Math.ceil((data.total || 0) / limit));
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load designs.",
+        );
+      } finally {
+        setLoading(false);
       }
-      const data: PaginationResponse = await response.json();
-      setDesigns(data.designs || []);
-      setTotalItems(data.total || 0);
-      setCurrentPage(data.page || page);
-      setTotalPages(Math.ceil((data.total || 0) / limit));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load designs.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [itemsPerPage],
+  );
 
   useEffect(() => {
     fetchDesigns(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, fetchDesigns]);
 
   const onPageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -99,7 +104,8 @@ export default function DesignList() {
       day: "numeric",
     });
 
-  const getLabelColor = (label: string) => {
+  const getLabelColor = (label: string | null | undefined) => {
+    if (!label) return "bg-gray-100 text-gray-600";
     switch (label.toLowerCase()) {
       case "new":
         return "bg-green-100 text-green-800";
@@ -113,7 +119,7 @@ export default function DesignList() {
   };
 
   const getSareeStyleDisplay = (style: string | null | undefined) => {
-    if (!style) return '';
+    if (!style) return "";
     return style.charAt(0).toUpperCase() + style.slice(1);
   };
 
@@ -306,8 +312,10 @@ export default function DesignList() {
                       <span
                         className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${getLabelColor(design.label)}`}
                       >
-                        {design.label.charAt(0).toUpperCase() +
-                          design.label.slice(1)}
+                        {design.label
+                          ? design.label.charAt(0).toUpperCase() +
+                            design.label.slice(1)
+                          : "None"}
                       </span>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
@@ -326,16 +334,16 @@ export default function DesignList() {
                     <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3 sm:py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          className={buttonClass}
+                          className={`${buttonClass} cursor-pointer`}
                           onClick={() => handleViewDesign(design)}
                         >
                           <Eye className={iconClass} />
                         </button>
-                        <button className={buttonClass}>
+                        <button className={`${buttonClass} cursor-pointer`}>
                           <Edit2 className={iconClass} />
                         </button>
                         <button
-                          className={`${buttonClass} hover:bg-red-100 hover:text-red-600`}
+                          className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
                         >
                           <Trash2 className={iconClass} />
                         </button>

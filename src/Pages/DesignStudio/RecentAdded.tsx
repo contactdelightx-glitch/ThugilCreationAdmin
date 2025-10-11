@@ -1,0 +1,297 @@
+import { useState, useEffect, useCallback } from "react";
+import { Plus, Edit2, Trash2, Eye } from "lucide-react";
+import { getTodaysDesigns } from "../../Api";
+import DesignUpdateModal from "./DesignUpdateModal";
+
+export interface Design {
+  id: number;
+  product_id: string;
+  name: string;
+  cards: number;
+  email: string;
+  epi: number;
+  final_price: string;
+  harnessbuild: string;
+  hooks: number;
+  image_type: string;
+  image_url: string;
+  label: string | null | undefined;
+  listing_rate: string;
+  original_image_url: string;
+  ppi: number;
+  saree_style: string;
+  redirect_url: string | null;
+  body_epi: string | null;
+  total_hooks: string | null;
+  border_epi: string | null;
+  jacquard_type: string | null;
+  br_hooks: string | null;
+  by_hooks: string | null;
+  created_at: string;
+}
+
+interface TodaysDesignsResponse {
+  total: number;
+  designs: Design[];
+}
+
+export default function RecentAdded() {
+  const [designs, setDesigns] = useState<Design[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+
+  const fetchDesigns = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await getTodaysDesigns();
+      if (!response.ok) throw new Error("Failed to fetch today's designs");
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/json")) {
+        throw new Error("Server responded with non-JSON content.");
+      }
+      const data: TodaysDesignsResponse = await response.json();
+      if (data && Array.isArray(data.designs)) {
+        setDesigns(data.designs);
+      } else {
+        setDesigns([]);
+      }
+    } catch {
+      setDesigns([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDesigns();
+  }, [fetchDesigns]);
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+  const getLabelColor = (label: string | null | undefined) => {
+    if (!label) return "bg-gray-100 text-gray-600";
+    switch (label.toLowerCase()) {
+      case "new":
+        return "bg-green-100 text-green-800";
+      case "popular":
+        return "bg-[var(--color-primary-light)] text-[var(--color-primary-dark)]";
+      case "sale":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+
+  const getSareeStyleDisplay = (style: string | null | undefined) => {
+    if (!style) return "";
+    return style.charAt(0).toUpperCase() + style.slice(1);
+  };
+
+  const handleViewDesign = (design: Design) => {
+    setSelectedDesign(design);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedDesign(null);
+  };
+
+  const buttonClass =
+    "p-1 text-gray-600 hover:text-[var(--color-primary)] hover:bg-gray-100 transition-colors sm:p-2";
+  const iconClass = "h-3 w-3 sm:h-4 sm:w-4";
+
+  if (loading && designs.length === 0) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin border-4 border-solid border-[var(--color-primary)] border-r-transparent" />
+          <p className="mt-2 text-gray-600">Loading designs...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="border-b border-gray-200 bg-white px-3 py-3 sm:px-4 lg:px-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 sm:text-xl lg:text-2xl">
+              Recent Added Designs
+            </h1>
+            <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+              View and manage designs added today
+            </p>
+          </div>
+          <button className="inline-flex items-center justify-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:px-4 sm:text-sm">
+            <Plus className={iconClass} />
+            New Design
+          </button>
+        </div>
+      </div>
+
+      <div className="p-2 sm:p-3 lg:p-4">
+        <div className="overflow-hidden border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Design
+                  </th>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Product ID
+                  </th>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Style & Specs
+                  </th>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Status
+                  </th>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Pricing
+                  </th>
+                  <th className="px-2 py-2 text-left text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Created
+                  </th>
+                  <th className="px-2 py-2 text-right text-xs font-semibold tracking-wider whitespace-nowrap text-gray-700 uppercase sm:px-3 sm:py-3">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {designs.map((design) => (
+                  <tr
+                    key={design.id}
+                    className="transition-colors hover:bg-gray-50"
+                  >
+                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 flex-shrink-0 overflow-hidden bg-gray-100 sm:h-10 sm:w-10">
+                          <img
+                            src={design.image_url}
+                            alt={design.name}
+                            className="h-full w-full object-cover"
+                            onError={(e) =>
+                              (e.currentTarget.src =
+                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
+                            }
+                          />
+                        </div>
+                        <div className="ml-2 min-w-0 sm:ml-3">
+                          <div className="max-w-[120px] truncate text-xs font-semibold text-gray-900 sm:max-w-none sm:text-sm">
+                            {design.name}
+                          </div>
+                          <div className="max-w-[120px] truncate text-xs text-gray-500 sm:max-w-none">
+                            {design.email}
+                          </div>
+                          <div className="mt-0.5 text-xs text-gray-400 sm:mt-1">
+                            {design.cards}c • {design.hooks}h • {design.epi} EPI
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                      <div className="font-mono text-xs text-gray-600 sm:text-sm">
+                        {design.product_id}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                      <div className="text-xs font-semibold text-gray-900 sm:text-sm">
+                        {getSareeStyleDisplay(design.saree_style)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {design.harnessbuild} • {design.ppi} PPI
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${getLabelColor(design.label)}`}
+                      >
+                        {design.label
+                          ? design.label.charAt(0).toUpperCase() +
+                            design.label.slice(1)
+                          : "None"}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                      <div className="text-xs font-semibold text-gray-900 sm:text-sm">
+                        ₹{design.final_price}
+                      </div>
+                      {design.listing_rate !== design.final_price && (
+                        <div className="text-xs text-gray-500 line-through">
+                          ₹{design.listing_rate}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-xs whitespace-nowrap text-gray-600 sm:px-3 sm:py-3 sm:text-sm">
+                      {formatDate(design.created_at)}
+                    </td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3 sm:py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          className={`${buttonClass} cursor-pointer`}
+                          onClick={() => handleViewDesign(design)}
+                        >
+                          <Eye className={iconClass} />
+                        </button>
+                        <button className={`${buttonClass} cursor-pointer`}>
+                          <Edit2 className={iconClass} />
+                        </button>
+                        <button
+                          className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
+                        >
+                          <Trash2 className={iconClass} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {designs.length === 0 && !loading && (
+          <div className="border border-gray-200 bg-white py-8 text-center sm:py-12">
+            <svg
+              className="mx-auto h-16 w-16 text-gray-300 sm:h-24 sm:w-24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+              />
+            </svg>
+            <h3 className="mt-2 text-base font-semibold text-gray-900 sm:mt-3 sm:text-lg">
+              No Recent Added Designs
+            </h3>
+            <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+              Get started by creating your first design.
+            </p>
+            <button className="mt-3 inline-flex items-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:mt-4 sm:px-4 sm:text-sm">
+              <Plus className={iconClass} />
+              Create Design
+            </button>
+          </div>
+        )}
+        {isModalOpen && selectedDesign && (
+          <DesignUpdateModal
+            design={selectedDesign}
+            onClose={handleCloseModal}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

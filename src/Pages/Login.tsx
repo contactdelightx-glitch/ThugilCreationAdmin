@@ -183,7 +183,7 @@ export default function Login() {
                 <div>
                   <label
                     htmlFor="email"
-                    className="mb-3 block text-sm text-xs font-semibold tracking-wide text-[var(--color-primary-dark)] uppercase"
+                    className="mb-3 block text-xs font-semibold tracking-wide text-[var(--color-primary-dark)] uppercase"
                   >
                     Email Address
                   </label>
@@ -206,7 +206,7 @@ export default function Login() {
                 <div>
                   <label
                     htmlFor="password"
-                    className="mb-3 block text-sm text-xs font-semibold tracking-wide text-[var(--color-primary-dark)] uppercase"
+                    className="mb-3 block text-xs font-semibold tracking-wide text-[var(--color-primary-dark)] uppercase"
                   >
                     Password
                   </label>

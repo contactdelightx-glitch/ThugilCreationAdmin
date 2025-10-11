@@ -1,6 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./Pages/Login";
+import Dashboard from "./Pages/Dashboard/Dashboard";
 import Home from "./Pages/Home";
+import NewDesign from "./Pages/DesignStudio/NewDesign";
+import DesignList from "./Pages/DesignStudio/DesignList";
+import RecentAdded from "./Pages/DesignStudio/RecentAdded";
+import DigitalAssets from "./Pages/DigitalAssets/DigitalAssets";
+import Collabration from "./Pages/Collabration/Collabration";
+import Support from "./Pages/Support";
+import Settings from "./Pages/Settings";
 
 export default function AppRoutes() {
   return (
@@ -8,24 +16,17 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/home" element={<Home />}>
-          <Route index element={<Home />} />
-          <Route path="dashboard" element={<Home />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="designs">
-            <Route index element={<Home />} />
-            <Route path="new" element={<Home />} />
-            <Route path="list" element={<Home />} />
-            <Route path="recent" element={<Home />} />
+            <Route path="new" element={<NewDesign />} />
+            <Route path="list" element={<DesignList />} />
+            <Route path="recent" element={<RecentAdded />} />
           </Route>
-          <Route path="analytics">
-            <Route index element={<Home />} />
-            <Route path="orders" element={<Home />} />
-            <Route path="reports" element={<Home />} />
-            <Route path="insights" element={<Home />} />
-          </Route>
-          <Route path="collaboration" element={<Home />} />
-          <Route path="assets" element={<Home />} />
-          <Route path="settings" element={<Home />} />
-          <Route path="support" element={<Home />} />
+          <Route path="assets" element={<DigitalAssets />} />
+          <Route path="digital-assets" element={<DigitalAssets />} />
+          <Route path="collaboration" element={<Collabration />} />
+          <Route path="support" element={<Support />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </Router>

@@ -166,7 +166,7 @@ export default function App() {
                 key={card.title}
                 href={card.url}
                 target="_blank"
-                className="outline-primary-600 dark:outline-primary-500 group hover:border-primary-600 dark:hover:border-primary-500 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-gray-50 outline-offset-2 focus:outline-2 dark:border-gray-700 dark:bg-gray-800"
+                className="outline-primary-600 dark:outline-primary-500 group hover:border-primary-600 dark:hover:border-primary-500 cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-gray-50 outline-offset-2 focus:outline-2 dark:border-gray-700 dark:"
               >
                 <div className="flex items-center gap-6 p-4">
                   <div className="flex flex-1 items-center gap-2">

@@ -1,16 +1,11 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { User, LogOut, Bell, ChevronRight } from "lucide-react";
 import {
   mainNavItems,
   secondaryNavItems,
   MenuItem,
 } from "../Constants/navItems";
-
-// Define props interface for Sidebar
-interface SidebarProps {
-  onNavigate: (page: string) => void;
-}
 
 // Function to decode JWT token and extract user data
 const decodeToken = (
@@ -57,14 +52,12 @@ const filterMenuByPermissions = (
     });
 };
 
-const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
+const Sidebar = () => {
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [userEmail, setUserEmail] = useState<string>("User");
   const [filteredMainNav, setFilteredMainNav] = useState<MenuItem[]>([]);
-  const [filteredSecondaryNav, setFilteredSecondaryNav] = useState<MenuItem[]>(
-    [],
-  );
+  const [filteredSecondaryNav, setFilteredSecondaryNav] = useState<MenuItem[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -142,18 +135,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
     });
   };
 
-  // Updated handleNavigation to only toggle submenu for parent items
-  const handleNavigation = (item: MenuItem) => {
-    if (item.submenu && item.submenu.length > 0) {
-      // Only toggle submenu for parent items, do not navigate
-      toggleSubmenu(item.id);
-    } else {
-      // Navigate for leaf items or submenu items using onNavigate
-      onNavigate(item.id);
-      navigate(item.href);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.clear();
     navigate("/");
@@ -187,44 +168,82 @@ const Sidebar: React.FC<SidebarProps> = ({ onNavigate }) => {
 
     return (
       <li key={item.id}>
-        <div
-          className={`group flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all duration-200 ${
-            isActive
-              ? "scale-[1.02] transform bg-[var(--color-primary)] text-white shadow-lg"
-              : "text-gray-300 hover:bg-[var(--color-primary-dark)] hover:text-white"
-          } ${level > 0 && !isMobile ? "ml-4" : ""} ${isMobile ? "justify-center" : "justify-between"}`}
-          onClick={() => handleNavigation(item)}
-        >
+        {hasSubmenu ? (
+          // Parent item with submenu - only toggles submenu
           <div
-            className={`flex items-center ${isMobile ? "justify-center" : "min-w-0 flex-1"}`}
+            className={`group flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all duration-200 ${
+              isActive
+                ? "scale-[1.02] transform bg-[var(--color-primary)] text-white shadow-lg"
+                : "text-gray-300 hover:bg-[var(--color-primary-dark)] hover:text-white"
+            } ${level > 0 && !isMobile ? "ml-4" : ""} ${isMobile ? "justify-center" : "justify-between"}`}
+            onClick={() => toggleSubmenu(item.id)}
           >
-            <item.icon
-              className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-white" : "text-gray-400"} ${isMobile ? "" : "mr-3"}`}
-            />
-            <span
-              className={`truncate text-sm font-medium ${isMobile ? "hidden" : "block"}`}
+            <div
+              className={`flex items-center ${isMobile ? "justify-center" : "min-w-0 flex-1"}`}
             >
-              {item.name}
-            </span>
-          </div>
-
-          <div
-            className={`ml-2 flex items-center space-x-2 ${isMobile ? "hidden" : "block"}`}
-          >
-            {item.badge && (
-              <span
-                className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold ${getBadgeColor(item.badgeColor)}`}
-              >
-                {item.badge}
-              </span>
-            )}
-            {hasSubmenu && (
-              <ChevronRight
-                className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+              <item.icon
+                className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-white" : "text-gray-400"} ${isMobile ? "" : "mr-3"}`}
               />
-            )}
+              <span
+                className={`truncate text-sm font-medium ${isMobile ? "hidden" : "block"}`}
+              >
+                {item.name}
+              </span>
+            </div>
+
+            <div
+              className={`ml-2 flex items-center space-x-2 ${isMobile ? "hidden" : "block"}`}
+            >
+              {item.badge && (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold ${getBadgeColor(item.badgeColor)}`}
+                >
+                  {item.badge}
+                </span>
+              )}
+              {hasSubmenu && (
+                <ChevronRight
+                  className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          // Leaf item - uses Link for navigation
+          <Link
+            to={item.href}
+            className={`group flex items-center justify-between rounded-lg px-4 py-3 transition-all duration-200 ${
+              isActive
+                ? "scale-[1.02] transform bg-[var(--color-primary)] text-white shadow-lg"
+                : "text-gray-300 hover:bg-[var(--color-primary-dark)] hover:text-white"
+            } ${level > 0 && !isMobile ? "ml-4" : ""} ${isMobile ? "justify-center" : "justify-between"}`}
+          >
+            <div
+              className={`flex items-center ${isMobile ? "justify-center" : "min-w-0 flex-1"}`}
+            >
+              <item.icon
+                className={`h-5 w-5 flex-shrink-0 ${isActive ? "text-white" : "text-gray-400"} ${isMobile ? "" : "mr-3"}`}
+              />
+              <span
+                className={`truncate text-sm font-medium ${isMobile ? "hidden" : "block"}`}
+              >
+                {item.name}
+              </span>
+            </div>
+
+            <div
+              className={`ml-2 flex items-center space-x-2 ${isMobile ? "hidden" : "block"}`}
+            >
+              {item.badge && (
+                <span
+                  className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold ${getBadgeColor(item.badgeColor)}`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </div>
+          </Link>
+        )}
 
         {hasSubmenu && isExpanded && (
           <ul className="animate-fadeIn mt-1 space-y-1">
