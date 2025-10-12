@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { getDashboardData } from "../../Api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface DashboardData {
   totalDesigns: number;
@@ -52,6 +52,30 @@ interface SankeyLink {
   target: number;
   value: number;
 }
+
+// Skeleton Card Component for Loading State
+const SkeletonCard = () => (
+  <Card
+    className="!bg-white shadow-sm"
+    style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
+  >
+    <div className="p-2 sm:p-3">
+      <div className="mb-3 h-5 w-1/3 animate-pulse rounded-none bg-gray-200"></div>
+      <div className="flex items-center gap-3">
+        <div
+          className="h-10 w-10 animate-pulse rounded-none"
+          style={{ backgroundColor: "#fff0c4" }}
+        ></div>
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-1/2 animate-pulse rounded-none bg-gray-200"></div>
+          <div className="h-6 w-3/4 animate-pulse rounded-none bg-gray-200"></div>
+        </div>
+      </div>
+      {/* Placeholder for charts */}
+      <div className="mt-3 h-64 w-full animate-pulse rounded-none bg-gray-200"></div>
+    </div>
+  </Card>
+);
 
 const Dashboard = () => {
   const [data, setData] = useState<DashboardData>({
@@ -154,72 +178,95 @@ const Dashboard = () => {
     ],
   };
 
-  // Custom Sankey Chart Component - Improved Version
   const SankeyChart = ({
     data,
   }: {
     data: { nodes: SankeyNode[]; links: SankeyLink[] };
   }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+
+    useEffect(() => { 
+      const updateSize = () => {
+        if (containerRef.current) {
+          setContainerWidth(containerRef.current.offsetWidth);
+        }
+      };
+      updateSize();
+      window.addEventListener("resize", updateSize);
+      return () => window.removeEventListener("resize", updateSize);
+    }, []);
+
     const totalValue = data.links.reduce((sum, link) => sum + link.value, 0);
     const nodeHeight = 40;
-    const nodeWidth = 140;
-    const chartHeight = 350;
-    const horizontalSpacing = 200;
+    const nodeWidth = containerWidth > 0 ? containerWidth / 3 : 140;
+    const chartHeight = data.nodes.length * (nodeHeight + 20);
+    const horizontalSpacing = containerWidth > 0 ? containerWidth / 2 : 200;
 
     return (
-      <div style={{ width: "100%", height: chartHeight, position: "relative" }}>
+      <div
+        ref={containerRef}
+        style={{
+          width: "100%",
+          height: chartHeight,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
         {/* Draw links */}
-        {data.links.map((link, index) => {
-          // Calculate positions
-          const sourceX = link.source % 2 === 0 ? 0 : horizontalSpacing;
-          const targetX = link.target % 2 === 0 ? 0 : horizontalSpacing;
-          const sourceY = link.source * nodeHeight + link.source * 20;
-          const targetY = link.target * nodeHeight + link.target * 20;
+        <svg
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+          }}
+          viewBox={`0 0 ${containerWidth} ${chartHeight}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            {data.links.map((_, index) => (
+              <linearGradient
+                key={index}
+                id={`gradient-${index}`}
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop offset="0%" stopColor="#8c1007" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#3e0703" stopOpacity="0.8" />
+              </linearGradient>
+            ))}
+          </defs>
+          {data.links.map((link, index) => {
+            const sourceX = link.source % 2 === 0 ? 0 : horizontalSpacing;
+            const targetX = link.target % 2 === 0 ? 0 : horizontalSpacing;
+            const sourceY = link.source * (nodeHeight + 20);
+            const targetY = link.target * (nodeHeight + 20);
+            const linkWidth = Math.max((link.value / totalValue) * 20, 2);
 
-          const linkWidth = Math.max((link.value / totalValue) * 150, 3);
-
-          return (
-            <svg
-              key={index}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-              }}
-            >
-              <defs>
-                <linearGradient
-                  id={`gradient-${index}`}
-                  x1="0%"
-                  y1="0%"
-                  x2="100%"
-                  y2="0%"
-                >
-                  <stop offset="0%" stopColor="#8c1007" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#3e0703" stopOpacity="0.8" />
-                </linearGradient>
-              </defs>
+            return (
               <path
-                d={`M ${sourceX + nodeWidth} ${sourceY + nodeHeight / 2} 
-                    C ${sourceX + nodeWidth + 80} ${sourceY + nodeHeight / 2} 
-                      ${targetX - 80} ${targetY + nodeHeight / 2} 
-                      ${targetX} ${targetY + nodeHeight / 2}`}
+                key={index}
+                d={`M ${sourceX + nodeWidth} ${sourceY + nodeHeight / 2}
+                  C ${sourceX + nodeWidth + 80} ${sourceY + nodeHeight / 2}
+                    ${targetX - 80} ${targetY + nodeHeight / 2}
+                    ${targetX} ${targetY + nodeHeight / 2}`}
                 stroke={`url(#gradient-${index})`}
                 strokeWidth={linkWidth}
                 fill="none"
                 strokeOpacity="0.7"
               />
-            </svg>
-          );
-        })}
+            );
+          })}
+        </svg>
 
         {/* Draw nodes */}
         {data.nodes.map((node, index) => {
           const xPos = index % 2 === 0 ? 0 : horizontalSpacing;
-          const yPos = index * nodeHeight + index * 20;
+          const yPos = index * (nodeHeight + 20);
 
           const nodeValue =
             data.links
@@ -265,9 +312,7 @@ const Dashboard = () => {
                 >
                   {index === 4 || index === 5 ? "₹" : ""}
                   {nodeValue.toLocaleString()}
-                  {index === 0 || index === 1 || index === 2 || index === 3
-                    ? " units"
-                    : ""}
+                  {index <= 3 ? " units" : ""}
                 </div>
               </div>
             </div>
@@ -291,10 +336,36 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-2 sm:p-3 lg:p-4">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-[#8c1007]"></div>
-          <p className="mt-4 text-[#3e0703]">Loading dashboard data...</p>
+      <div className="min-h-screen p-2 sm:p-3 lg:p-4">
+        {/* Header Skeleton */}
+        <div className="mb-4 sm:mb-6">
+          <div className="h-6 w-1/3 animate-pulse rounded-none bg-gray-200"></div>
+          <div className="mt-1 h-4 w-2/3 animate-pulse rounded-none bg-gray-200"></div>
+        </div>
+
+        {/* Main Stats Grid Skeleton */}
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <SkeletonCard key={`stats-${index}`} />
+          ))}
+        </div>
+
+        {/* First Row Charts Skeleton */}
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
+          <SkeletonCard key="chart-1" />
+          <SkeletonCard key="chart-2" />
+        </div>
+
+        {/* Second Row Charts Skeleton */}
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
+          <SkeletonCard key="chart-3" />
+          <SkeletonCard key="chart-4" />
+        </div>
+
+        {/* Analytics Section Skeleton */}
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
+          <SkeletonCard key="analytics-1" />
+          <SkeletonCard key="analytics-2" />
         </div>
       </div>
     );

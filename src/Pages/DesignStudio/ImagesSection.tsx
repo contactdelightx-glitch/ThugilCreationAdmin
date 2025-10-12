@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getAllStoreImages } from "../../Api";
 
 export interface StoreImage {
@@ -39,7 +39,7 @@ const ImagesSection = () => {
   const fetchImages = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await getAllStoreImages(currentPage - 1, itemsPerPage);
+      const response = await getAllStoreImages(currentPage, itemsPerPage);
       if (!response.ok) throw new Error("Failed to fetch images");
       const contentType = response.headers.get("content-type");
       if (!contentType?.includes("application/json")) {
@@ -99,23 +99,6 @@ const ImagesSection = () => {
     return [...new Set(pages)];
   };
 
-  const downloadImage = async (imageUrl: string, fileName: string) => {
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Download failed:", error);
-    }
-  };
-
   const copyImageLink = async (imageUrl: string, imageId: string) => {
     try {
       await navigator.clipboard.writeText(imageUrl);
@@ -164,18 +147,6 @@ const ImagesSection = () => {
                         'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
                     }
                   />
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        downloadImage(image.image_url, image.name || "download");
-                      }}
-                      className="cursor-pointer bg-white/95 p-1.5 shadow-md backdrop-blur-sm transition-all hover:bg-white"
-                      style={{ borderRadius: '0' }}
-                    >
-                      <Download className="h-3.5 w-3.5" style={{ color: "var(--color-primary)" }} />
-                    </button>
-                  </div>
                 </div>
                 <div className="p-2" style={{ borderRadius: '0' }}>
                   <h5 className="mb-1 truncate text-xs font-semibold text-gray-900">

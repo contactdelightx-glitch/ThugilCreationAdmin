@@ -80,14 +80,14 @@ export async function getDesigns(page: number = 1, limit: number = 50) {
   });
 }
 export async function getDesignsWithFilters(
-  page: number = 1, 
-  limit: number = 50, 
-  filters: Record<string, string | number> = {}
+  page: number = 1,
+  limit: number = 50,
+  filters: Record<string, string | number> = {},
 ) {
   const params = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString(),
-    ...filters
+    ...filters,
   });
 
   return fetch(`${API_BASE_URL}/designs?${params.toString()}`, {
@@ -145,4 +145,18 @@ export async function getStoreImageByKey(key: string) {
       "Content-Type": "application/json",
     },
   });
+}
+
+export async function getFullReport(
+  customer_email?: string,
+  customer_name?: string,
+  user_email?: string,
+) {
+  const url = new URL(`${API_BASE_URL}/reports/full`);
+
+  if (customer_email) url.searchParams.append("customer_email", customer_email);
+  if (customer_name) url.searchParams.append("customer_name", customer_name);
+  if (user_email) url.searchParams.append("user_email", user_email);
+
+  return fetch(url.toString());
 }
