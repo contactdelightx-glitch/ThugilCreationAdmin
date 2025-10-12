@@ -2,14 +2,15 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Search,
   Plus,
   Edit2,
   Trash2,
   Eye,
 } from "lucide-react";
-import { getDesigns } from "../../Api";
+import { Toast } from "flowbite-react";
+import { getDesignsWithFilters, deleteDesign } from "../../Api";
 import DesignUpdateModal from "./DesignUpdateModal";
+import DesignFilters from "./DesignFilters";
 
 export interface Design {
   id: number;
@@ -45,6 +46,16 @@ interface PaginationResponse {
   limit: number;
 }
 
+interface FilterState {
+  searchQuery: string;
+  selectedStyle: string;
+  selectedJacquard: string;
+  selectedLabel: string;
+  epiFilter: string;
+  ppiFilter: string;
+  hooksFilter: string;
+}
+
 export default function DesignList() {
   const [designs, setDesigns] = useState<Design[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,17 +63,48 @@ export default function DesignList() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [designToDelete, setDesignToDelete] = useState<Design | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: "",
+    selectedStyle: "",
+    selectedJacquard: "",
+    selectedLabel: "",
+    epiFilter: "",
+    ppiFilter: "",
+    hooksFilter: "",
+  });
 
   const fetchDesigns = useCallback(
     async (page: number, limit: number = itemsPerPage) => {
       setLoading(true);
       setError(null);
       try {
-        const response = await getDesigns(page, limit);
+        const filterParams: Record<string, string> = {};
+
+        if (filters.searchQuery) {
+          filterParams.name = filters.searchQuery;
+          filterParams.product_id = filters.searchQuery;
+          filterParams.email = filters.searchQuery;
+        }
+
+        if (filters.selectedStyle)
+          filterParams.saree_style = filters.selectedStyle;
+        if (filters.selectedJacquard)
+          filterParams.jacquard_type = filters.selectedJacquard;
+        if (filters.selectedLabel) filterParams.label = filters.selectedLabel;
+        if (filters.epiFilter) filterParams.epi = filters.epiFilter;
+        if (filters.ppiFilter) filterParams.ppi = filters.ppiFilter;
+        if (filters.hooksFilter) filterParams.hooks = filters.hooksFilter;
+
+        const response = await getDesignsWithFilters(page, limit, filterParams);
         if (!response.ok) throw new Error("Failed to fetch designs");
         const contentType = response.headers.get("content-type");
         if (!contentType?.includes("application/json")) {
@@ -81,12 +123,21 @@ export default function DesignList() {
         setLoading(false);
       }
     },
-    [itemsPerPage],
+    [itemsPerPage, filters],
   );
 
   useEffect(() => {
     fetchDesigns(currentPage, itemsPerPage);
   }, [currentPage, itemsPerPage, fetchDesigns]);
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const onPageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -154,13 +205,78 @@ export default function DesignList() {
 
   const handleViewDesign = (design: Design) => {
     setSelectedDesign(design);
+    setModalMode("view");
     setIsModalOpen(true);
+  };
+
+  const handleEditDesign = (design: Design) => {
+    setSelectedDesign(design);
+    setModalMode("edit");
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteDesign = (design: Design) => {
+    setDesignToDelete(design);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleEditSuccess = (message: string) => {
+    setSuccessMessage(message);
+    fetchDesigns(currentPage, itemsPerPage);
+  };
+
+  const confirmDelete = async () => {
+    if (!designToDelete) return;
+
+    setDeleting(true);
+    try {
+      const response = await deleteDesign(designToDelete.id);
+      if (response.message) {
+        setSuccessMessage(response.message);
+      } else {
+        setSuccessMessage("Design deleted successfully!");
+      }
+      fetchDesigns(currentPage, itemsPerPage);
+      setIsDeleteModalOpen(false);
+      setDesignToDelete(null);
+    } catch (error) {
+      console.error("Failed to delete design:", error);
+      setSuccessMessage("Failed to delete design. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedDesign(null);
+    setModalMode("view");
   };
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setDesignToDelete(null);
+  };
+
+  const handleFilterChange = (newFilters: Partial<FilterState>) => {
+    setFilters((prev) => ({ ...prev, ...newFilters }));
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      searchQuery: "",
+      selectedStyle: "",
+      selectedJacquard: "",
+      selectedLabel: "",
+      epiFilter: "",
+      ppiFilter: "",
+      hooksFilter: "",
+    });
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = Object.values(filters).some((value) => value !== "");
 
   const buttonClass =
     "p-1 text-gray-600 hover:text-[var(--color-primary)] hover:bg-gray-100 transition-colors sm:p-2";
@@ -179,7 +295,38 @@ export default function DesignList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {successMessage && (
+        <div className="animate-fade-in fixed top-5 right-5 z-50">
+          <Toast className="flex items-center rounded-none border-l-4 border-l-[var(--color-primary-light)] bg-white p-2 shadow-2xl">
+            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-[var(--color-primary-light)] text-[var(--color-primary-dark)]">
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="mx-2 flex-1 text-sm font-semibold text-[var(--color-primary-light)]">
+              {successMessage}
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="flex h-6 w-6 items-center justify-center text-[var(--color-primary-light)] hover:text-white"
+            >
+              <span className="sr-only">Close</span>
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </Toast>
+        </div>
+      )}
+
       <div className="border-b border-gray-200 bg-white px-3 py-3 sm:px-4 lg:px-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -190,30 +337,19 @@ export default function DesignList() {
               Manage and organize all your design projects
             </p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:px-4 sm:text-sm">
-            <Plus className={iconClass} />
-            New Design
-          </button>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="border-b border-gray-200 bg-white px-3 py-2 sm:px-4 lg:px-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search designs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border border-gray-300 py-2 pr-3 pl-9 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:py-2 sm:pr-4 sm:pl-10 sm:text-sm"
-            />
-          </div>
-        </div>
-      </div>
+      <DesignFilters
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        showFilters={showFilters}
+        onShowFiltersChange={setShowFilters}
+        onClearFilters={clearFilters}
+        hasActiveFilters={hasActiveFilters}
+        designs={designs}
+      />
 
-      {/* Error Alert */}
       {error && (
         <div className="mx-3 mt-2 border border-red-200 bg-red-50 p-2 text-xs sm:mx-4 sm:p-3 lg:mx-6">
           <div className="flex">
@@ -233,7 +369,6 @@ export default function DesignList() {
         </div>
       )}
 
-      {/* Main Content */}
       <div className="p-2 sm:p-3 lg:p-4">
         <div className="overflow-hidden border border-gray-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
@@ -339,11 +474,15 @@ export default function DesignList() {
                         >
                           <Eye className={iconClass} />
                         </button>
-                        <button className={`${buttonClass} cursor-pointer`}>
+                        <button
+                          className={`${buttonClass} cursor-pointer`}
+                          onClick={() => handleEditDesign(design)}
+                        >
                           <Edit2 className={iconClass} />
                         </button>
                         <button
                           className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
+                          onClick={() => handleDeleteDesign(design)}
                         >
                           <Trash2 className={iconClass} />
                         </button>
@@ -355,7 +494,6 @@ export default function DesignList() {
             </table>
           </div>
         </div>
-        {/* Empty State */}
         {designs.length === 0 && !loading && (
           <div className="border border-gray-200 bg-white py-8 text-center sm:py-12">
             <svg
@@ -375,7 +513,9 @@ export default function DesignList() {
               No designs found
             </h3>
             <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-              Get started by creating your first design.
+              {hasActiveFilters
+                ? "Try adjusting your search or filter criteria."
+                : "Get started by creating your first design."}
             </p>
             <button className="mt-3 inline-flex items-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:mt-4 sm:px-4 sm:text-sm">
               <Plus className={iconClass} />
@@ -383,7 +523,6 @@ export default function DesignList() {
             </button>
           </div>
         )}
-        {/* Pagination */}
         {designs.length > 0 && (
           <div className="mt-3 border border-gray-200 bg-white sm:mt-4">
             <div className="flex flex-col items-center justify-between gap-2 px-3 py-2 md:flex-row md:gap-4 md:px-4">
@@ -402,6 +541,9 @@ export default function DesignList() {
                     {totalItems}
                   </span>{" "}
                   designs
+                  {hasActiveFilters && (
+                    <span className="text-gray-500"> (filtered results)</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <label
@@ -473,12 +615,44 @@ export default function DesignList() {
           </div>
         )}
 
-        {/* Design Update Modal */}
         {isModalOpen && selectedDesign && (
           <DesignUpdateModal
             design={selectedDesign}
             onClose={handleCloseModal}
+            mode={modalMode}
+            onSuccess={handleEditSuccess}
           />
+        )}
+
+        {isDeleteModalOpen && designToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+              <div className="p-6">
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                  Delete Design
+                </h3>
+                <p className="mb-4 text-sm text-gray-600">
+                  Are you sure you want to delete the design "
+                  {designToDelete.name}"? This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={handleCloseDeleteModal}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                    className="rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -79,7 +79,24 @@ export async function getDesigns(page: number = 1, limit: number = 50) {
     },
   });
 }
+export async function getDesignsWithFilters(
+  page: number = 1, 
+  limit: number = 50, 
+  filters: Record<string, string | number> = {}
+) {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    ...filters
+  });
 
+  return fetch(`${API_BASE_URL}/designs?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
 export async function getTodaysDesigns() {
   return fetch(`${API_BASE_URL}/designs/recents`, {
     method: "GET",
@@ -88,6 +105,7 @@ export async function getTodaysDesigns() {
     },
   });
 }
+
 export async function createDesign(data: object) {
   return fetch(`${API_BASE_URL}/designs`, {
     method: "POST",
@@ -95,6 +113,21 @@ export async function createDesign(data: object) {
     body: JSON.stringify(data),
   }).then((res) => res.json());
 }
+
+export async function updateDesign(id: number, data: object) {
+  return fetch(`${API_BASE_URL}/designs/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((res) => res.json());
+}
+
+export async function deleteDesign(id: number) {
+  return fetch(`${API_BASE_URL}/designs/${id}`, {
+    method: "DELETE",
+  }).then((res) => res.json());
+}
+
 // ---------- IMAGES ----------
 export async function getAllStoreImages(page: number = 1, limit: number = 50) {
   return fetch(`${API_BASE_URL}/images?page=${page}&limit=${limit}`, {

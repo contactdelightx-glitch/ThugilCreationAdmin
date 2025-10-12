@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Edit2, Trash2, Eye } from "lucide-react";
-import { getTodaysDesigns } from "../../Api";
+import { Toast } from "flowbite-react";
+import { getTodaysDesigns, deleteDesign } from "../../Api";
 import DesignUpdateModal from "./DesignUpdateModal";
 
 export interface Design {
@@ -40,6 +41,11 @@ export default function RecentAdded() {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [designToDelete, setDesignToDelete] = useState<Design | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchDesigns = useCallback(async () => {
     setLoading(true);
@@ -66,6 +72,15 @@ export default function RecentAdded() {
   useEffect(() => {
     fetchDesigns();
   }, [fetchDesigns]);
+
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("en-US", {
@@ -95,12 +110,59 @@ export default function RecentAdded() {
 
   const handleViewDesign = (design: Design) => {
     setSelectedDesign(design);
+    setModalMode("view");
     setIsModalOpen(true);
+  };
+
+  const handleEditDesign = (design: Design) => {
+    setSelectedDesign(design);
+    setModalMode("edit");
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteDesign = (design: Design) => {
+    setDesignToDelete(design);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleEditSuccess = (message: string) => {
+    setSuccessMessage(message);
+    fetchDesigns(); // Refresh the list
+  };
+
+  const confirmDelete = async () => {
+    if (!designToDelete) return;
+
+    setDeleting(true);
+    try {
+      const response = await deleteDesign(designToDelete.id);
+      if (response.message) {
+        setSuccessMessage(response.message);
+      } else {
+        setSuccessMessage("Design deleted successfully!");
+      }
+      setDesigns((prev) =>
+        prev.filter((design) => design.id !== designToDelete.id),
+      );
+      setIsDeleteModalOpen(false);
+      setDesignToDelete(null);
+    } catch (error) {
+      console.error("Failed to delete design:", error);
+      setSuccessMessage("Failed to delete design. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedDesign(null);
+    setModalMode("view");
+  };
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setDesignToDelete(null);
   };
 
   const buttonClass =
@@ -120,6 +182,38 @@ export default function RecentAdded() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {successMessage && (
+        <div className="animate-fade-in fixed top-5 right-5 z-50">
+          <Toast className="flex items-center rounded-none border-l-4 border-l-[var(--color-primary-light)] bg-white p-2 shadow-2xl">
+            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-[var(--color-primary-light)] text-[var(--color-primary-dark)]">
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="mx-2 flex-1 text-sm font-semibold text-[var(--color-primary-light)]">
+              {successMessage}
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="flex h-6 w-6 items-center justify-center text-[var(--color-primary-light)] hover:text-white"
+            >
+              <span className="sr-only">Close</span>
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </Toast>
+        </div>
+      )}
+
       <div className="border-b border-gray-200 bg-white px-3 py-3 sm:px-4 lg:px-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -130,10 +224,6 @@ export default function RecentAdded() {
               View and manage designs added today
             </p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:px-4 sm:text-sm">
-            <Plus className={iconClass} />
-            New Design
-          </button>
         </div>
       </div>
 
@@ -242,11 +332,15 @@ export default function RecentAdded() {
                         >
                           <Eye className={iconClass} />
                         </button>
-                        <button className={`${buttonClass} cursor-pointer`}>
+                        <button
+                          className={`${buttonClass} cursor-pointer`}
+                          onClick={() => handleEditDesign(design)}
+                        >
                           <Edit2 className={iconClass} />
                         </button>
                         <button
                           className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
+                          onClick={() => handleDeleteDesign(design)}
                         >
                           <Trash2 className={iconClass} />
                         </button>
@@ -289,7 +383,40 @@ export default function RecentAdded() {
           <DesignUpdateModal
             design={selectedDesign}
             onClose={handleCloseModal}
+            mode={modalMode}
+            onSuccess={handleEditSuccess}
           />
+        )}
+
+        {isDeleteModalOpen && designToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+              <div className="p-6">
+                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+                  Delete Design
+                </h3>
+                <p className="mb-4 text-sm text-gray-600">
+                  Are you sure you want to delete the design "
+                  {designToDelete.name}"? This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={handleCloseDeleteModal}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                    className="rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

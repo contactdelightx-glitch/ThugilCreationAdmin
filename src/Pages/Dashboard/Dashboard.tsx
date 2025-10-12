@@ -2,8 +2,8 @@ import { Card } from "flowbite-react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -20,6 +20,37 @@ interface DashboardData {
   avgPrice: number;
   freeImagesCount: number;
   uploadedImagesCount: number;
+  todaySales: number;
+  weeklySales: number;
+  monthlySales: number;
+  soldDesigns: Array<{
+    id: string;
+    name: string;
+    final_price: number;
+    timesSold: number;
+  }>;
+  topSoldDesigns: Array<{
+    id: string;
+    name: string;
+    final_price: number;
+    timesSold: number;
+  }>;
+  monthlyBreakdown: Array<{
+    month: string;
+    designsSold: number;
+    totalRevenue: number;
+  }>;
+}
+
+// Sankey chart node and link interfaces
+interface SankeyNode {
+  name: string;
+}
+
+interface SankeyLink {
+  source: number;
+  target: number;
+  value: number;
 }
 
 const Dashboard = () => {
@@ -29,6 +60,12 @@ const Dashboard = () => {
     avgPrice: 0,
     freeImagesCount: 0,
     uploadedImagesCount: 0,
+    todaySales: 0,
+    weeklySales: 0,
+    monthlySales: 0,
+    soldDesigns: [],
+    topSoldDesigns: [],
+    monthlyBreakdown: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +75,13 @@ const Dashboard = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("token");
-        
+
         if (!token) {
           throw new Error("No authentication token found");
         }
 
         // Decode token to get email
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const tokenPayload = JSON.parse(atob(token.split(".")[1]));
         const userEmail = tokenPayload.email;
 
         if (!userEmail) {
@@ -56,12 +93,14 @@ const Dashboard = () => {
         // Pass an object with email property as expected by the API function
         const dashboardData = await getDashboardData({ email: userEmail });
         console.log("Dashboard data received:", dashboardData);
-        
+
         setData(dashboardData);
         setError(null);
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch dashboard data");
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch dashboard data",
+        );
       } finally {
         setLoading(false);
       }
@@ -70,31 +109,191 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // Chart data (keeping as mock data since no backend data available)
-  const monthlyData = [
-    { month: "Jan", designs: 45, revenue: 7650 },
-    { month: "Feb", designs: 52, revenue: 8850 },
-    { month: "Mar", designs: 48, revenue: 8160 },
-    { month: "Apr", designs: 55, revenue: 9350 },
-    { month: "May", designs: 62, revenue: 10540 },
-    { month: "Jun", designs: 58, revenue: 9860 },
-    { month: "Jul", designs: 65, revenue: 11050 },
-    { month: "Aug", designs: 58, revenue: 9860 },
+  // Calculate total monthly revenue from monthlyBreakdown
+  const totalMonthlyRevenue = data.monthlyBreakdown.reduce(
+    (total, month) => total + month.totalRevenue,
+    0,
+  );
+
+  // Prepare chart data from backend data
+  const salesDistributionData = [
+    { name: "Today", sales: data.todaySales },
+    { name: "This Week", sales: data.weeklySales },
+    { name: "This Month", sales: data.monthlySales },
   ];
 
+  const monthlySalesData = data.monthlyBreakdown.map((item) => ({
+    month: item.month,
+    sales: item.designsSold,
+    revenue: item.totalRevenue,
+  }));
+
+  // Top Selling Designs Data
+  const topSellingDesignsData = data.topSoldDesigns.map((design) => ({
+    name: design.name,
+    sales: design.timesSold,
+    revenue: design.final_price * design.timesSold,
+  }));
+
+  // Sankey Chart Data for Price Analysis
+  const sankeyData = {
+    nodes: [
+      { name: "Total Designs" },
+      { name: "Paid Designs" },
+      { name: "Free Designs" },
+      { name: "Sold Designs" },
+      { name: "Monthly Revenue" },
+      { name: "Avg Price" },
+    ],
+    links: [
+      { source: 0, target: 1, value: data.totalDesigns - data.freeImagesCount },
+      { source: 0, target: 2, value: data.freeImagesCount },
+      { source: 1, target: 3, value: data.monthlySales },
+      { source: 3, target: 4, value: totalMonthlyRevenue },
+      { source: 1, target: 5, value: data.avgPrice },
+    ],
+  };
+
+  // Custom Sankey Chart Component - Improved Version
+  const SankeyChart = ({
+    data,
+  }: {
+    data: { nodes: SankeyNode[]; links: SankeyLink[] };
+  }) => {
+    const totalValue = data.links.reduce((sum, link) => sum + link.value, 0);
+    const nodeHeight = 40;
+    const nodeWidth = 140;
+    const chartHeight = 350;
+    const horizontalSpacing = 200;
+
+    return (
+      <div style={{ width: "100%", height: chartHeight, position: "relative" }}>
+        {/* Draw links */}
+        {data.links.map((link, index) => {
+          // Calculate positions
+          const sourceX = link.source % 2 === 0 ? 0 : horizontalSpacing;
+          const targetX = link.target % 2 === 0 ? 0 : horizontalSpacing;
+          const sourceY = link.source * nodeHeight + link.source * 20;
+          const targetY = link.target * nodeHeight + link.target * 20;
+
+          const linkWidth = Math.max((link.value / totalValue) * 150, 3);
+
+          return (
+            <svg
+              key={index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none",
+              }}
+            >
+              <defs>
+                <linearGradient
+                  id={`gradient-${index}`}
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
+                  <stop offset="0%" stopColor="#8c1007" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#3e0703" stopOpacity="0.8" />
+                </linearGradient>
+              </defs>
+              <path
+                d={`M ${sourceX + nodeWidth} ${sourceY + nodeHeight / 2} 
+                    C ${sourceX + nodeWidth + 80} ${sourceY + nodeHeight / 2} 
+                      ${targetX - 80} ${targetY + nodeHeight / 2} 
+                      ${targetX} ${targetY + nodeHeight / 2}`}
+                stroke={`url(#gradient-${index})`}
+                strokeWidth={linkWidth}
+                fill="none"
+                strokeOpacity="0.7"
+              />
+            </svg>
+          );
+        })}
+
+        {/* Draw nodes */}
+        {data.nodes.map((node, index) => {
+          const xPos = index % 2 === 0 ? 0 : horizontalSpacing;
+          const yPos = index * nodeHeight + index * 20;
+
+          const nodeValue =
+            data.links
+              .filter((link) => link.source === index)
+              .reduce((sum, link) => sum + link.value, 0) ||
+            data.links
+              .filter((link) => link.target === index)
+              .reduce((sum, link) => sum + link.value, 0);
+
+          return (
+            <div
+              key={index}
+              style={{
+                position: "absolute",
+                left: xPos,
+                top: yPos,
+                width: nodeWidth,
+                height: nodeHeight,
+                backgroundColor: "#8c1007",
+                border: "2px solid #3e0703",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "11px",
+                textAlign: "center",
+                padding: "6px",
+                borderRadius: "4px",
+                boxShadow: "2px 2px 4px rgba(0,0,0,0.2)",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "10px", marginBottom: "2px" }}>
+                  {node.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: "9px",
+                    opacity: 0.9,
+                    fontWeight: "normal",
+                  }}
+                >
+                  {index === 4 || index === 5 ? "₹" : ""}
+                  {nodeValue.toLocaleString()}
+                  {index === 0 || index === 1 || index === 2 || index === 3
+                    ? " units"
+                    : ""}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // Calculate derived metrics from backend data
-  const designUtilizationRate = data.uploadedImagesCount > 0 ? 
-    Math.round((data.uploadedImagesCount / data.totalDesigns) * 100) : 0;
-  
+  const designUtilizationRate =
+    data.uploadedImagesCount > 0
+      ? Math.round((data.uploadedImagesCount / data.totalDesigns) * 100)
+      : 0;
+
   const paidDesignsCount = data.totalDesigns - data.freeImagesCount;
-  const assetCoverageRatio = data.totalDesigns > 0 ? 
-    `${data.uploadedImagesCount}:${data.totalDesigns}` : "0:0";
+  const assetCoverageRatio =
+    data.totalDesigns > 0
+      ? `${data.uploadedImagesCount}:${data.totalDesigns}`
+      : "0:0";
 
   if (loading) {
     return (
-      <div className="min-h-screen p-2 sm:p-3 lg:p-4 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center p-2 sm:p-3 lg:p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8c1007] mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-[#8c1007]"></div>
           <p className="mt-4 text-[#3e0703]">Loading dashboard data...</p>
         </div>
       </div>
@@ -103,18 +302,30 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen p-2 sm:p-3 lg:p-4 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center p-2 sm:p-3 lg:p-4">
         <div className="text-center">
-          <div className="text-red-600 mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <div className="mb-4 text-red-600">
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-[#3e0703] mb-2">Error Loading Dashboard</h3>
+          <h3 className="mb-2 text-lg font-semibold text-[#3e0703]">
+            Error Loading Dashboard
+          </h3>
           <p className="text-[#8c1007]">{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-[#8c1007] text-white hover:bg-[#3e0703] transition-colors"
+            className="mt-4 bg-[#8c1007] px-4 py-2 text-white transition-colors hover:bg-[#3e0703]"
             style={{ borderRadius: "0px" }}
           >
             Retry
@@ -125,9 +336,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div
-      className="min-h-screen p-2 sm:p-3 lg:p-4"
-    >
+    <div className="min-h-screen p-2 sm:p-3 lg:p-4">
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <h1
@@ -141,8 +350,8 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Main Stats Grid */}
-      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-4">
+      {/* Main Stats Grid - Updated with Monthly Revenue */}
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-5">
         {/* Total Designs */}
         <Card
           className="!bg-white shadow-sm"
@@ -184,7 +393,7 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        {/* Total Price */}
+        {/* Total Portfolio Value */}
         <Card
           className="!bg-white shadow-sm"
           style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -213,7 +422,7 @@ const Dashboard = () => {
                 className="text-xs font-medium tracking-wide uppercase sm:text-sm"
                 style={{ color: "#8c1007" }}
               >
-                Total Value
+                Portfolio Value
               </p>
               <p
                 className="truncate text-lg font-bold sm:text-xl"
@@ -225,7 +434,7 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        {/* Average Price */}
+        {/* Monthly Revenue */}
         <Card
           className="!bg-white shadow-sm"
           style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -254,13 +463,54 @@ const Dashboard = () => {
                 className="text-xs font-medium tracking-wide uppercase sm:text-sm"
                 style={{ color: "#8c1007" }}
               >
-                Avg. Price
+                Monthly Revenue
               </p>
               <p
                 className="truncate text-lg font-bold sm:text-xl"
                 style={{ color: "#3e0703" }}
               >
-                ₹{data.avgPrice.toFixed(0)}
+                ₹{totalMonthlyRevenue.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Monthly Sales */}
+        <Card
+          className="!bg-white shadow-sm"
+          style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
+        >
+          <div className="flex items-center p-2">
+            <div
+              className="mr-3 p-2"
+              style={{ backgroundColor: "#fff0c4", borderRadius: "0px" }}
+            >
+              <svg
+                className="h-5 w-5 sm:h-6 sm:w-6"
+                fill="none"
+                stroke="#8c1007"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p
+                className="text-xs font-medium tracking-wide uppercase sm:text-sm"
+                style={{ color: "#8c1007" }}
+              >
+                Monthly Sales
+              </p>
+              <p
+                className="truncate text-lg font-bold sm:text-xl"
+                style={{ color: "#3e0703" }}
+              >
+                {data.monthlySales}
               </p>
             </div>
           </div>
@@ -308,9 +558,9 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Charts Section */}
+      {/* First Row - 2 Charts */}
       <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
-        {/* Monthly Performance Chart */}
+        {/* Sales Distribution Chart */}
         <Card
           className="!bg-white shadow-sm"
           style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -320,17 +570,17 @@ const Dashboard = () => {
               className="mb-3 text-base font-semibold sm:text-lg"
               style={{ color: "#3e0703" }}
             >
-              Monthly Performance
+              Sales Distribution
             </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={monthlyData}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={salesDistributionData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="#8c1007"
                   opacity={0.2}
                 />
                 <XAxis
-                  dataKey="month"
+                  dataKey="name"
                   tick={{ fill: "#3e0703", fontSize: 12 }}
                 />
                 <YAxis tick={{ fill: "#3e0703", fontSize: 12 }} />
@@ -342,14 +592,13 @@ const Dashboard = () => {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
-                <Bar dataKey="designs" fill="#8c1007" name="Designs" />
-                <Bar dataKey="revenue" fill="#3e0703" name="Revenue (₹)" />
+                <Bar dataKey="sales" fill="#8c1007" name="Sales" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Revenue Trend Chart */}
+        {/* Monthly Revenue Trend */}
         <Card
           className="!bg-white shadow-sm"
           style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -359,10 +608,10 @@ const Dashboard = () => {
               className="mb-3 text-base font-semibold sm:text-lg"
               style={{ color: "#3e0703" }}
             >
-              Revenue Trend
+              Monthly Revenue Trend
             </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={monthlyData}>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={monthlySalesData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="#8c1007"
@@ -379,29 +628,92 @@ const Dashboard = () => {
                     border: "2px solid #8c1007",
                     borderRadius: "0px",
                   }}
+                  formatter={(value) => [`₹${value}`, "Revenue"]}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="revenue"
                   stroke="#8c1007"
-                  strokeWidth={3}
+                  fill="#8c1007"
+                  fillOpacity={0.3}
                   name="Revenue (₹)"
                 />
-                <Line
-                  type="monotone"
-                  dataKey="designs"
-                  stroke="#3e0703"
-                  strokeWidth={2}
-                  name="Designs"
-                />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
       </div>
 
-      {/* Analytics Section */}
+      {/* Second Row - 2 Charts */}
+      <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
+        {/* Sankey Chart for Price Analysis */}
+        <Card
+          className="!bg-white shadow-sm"
+          style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
+        >
+          <div className="p-2 sm:p-3">
+            <h3
+              className="mb-3 text-base font-semibold sm:text-lg"
+              style={{ color: "#3e0703" }}
+            >
+              Business Flow Analysis
+            </h3>
+            <div className="mb-4 text-xs text-[#8c1007]">
+              Visualizing the flow from designs to revenue generation
+            </div>
+            <SankeyChart data={sankeyData} />
+          </div>
+        </Card>
+
+        {/* Top Selling Designs */}
+        <Card
+          className="!bg-white shadow-sm"
+          style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
+        >
+          <div className="p-2 sm:p-3">
+            <h3
+              className="mb-3 text-base font-semibold sm:text-lg"
+              style={{ color: "#3e0703" }}
+            >
+              Top Selling Designs
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={topSellingDesignsData}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#8c1007"
+                  opacity={0.2}
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "#3e0703", fontSize: 10 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis tick={{ fill: "#3e0703", fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff0c4",
+                    border: "2px solid #8c1007",
+                    borderRadius: "0px",
+                  }}
+                  formatter={(value, name) => [
+                    name === "revenue" ? `₹${value}` : value,
+                    name === "revenue" ? "Revenue" : "Sales",
+                  ]}
+                />
+                <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
+                <Bar dataKey="sales" fill="#8c1007" name="Times Sold" />
+                <Bar dataKey="revenue" fill="#3e0703" name="Revenue (₹)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      {/* Analytics Section - Performance & Financial Summary */}
       <div className="mb-4 grid grid-cols-1 gap-3 lg:mb-6 lg:grid-cols-2 lg:gap-4">
         {/* Performance Metrics */}
         <Card
@@ -549,17 +861,17 @@ const Dashboard = () => {
                     className="truncate text-sm font-medium"
                     style={{ color: "#3e0703" }}
                   >
-                    Average Design Price
+                    Monthly Revenue
                   </p>
                   <p className="truncate text-xs" style={{ color: "#8c1007" }}>
-                    Mean price across portfolio
+                    Total income this month
                   </p>
                 </div>
                 <span
                   className="ml-2 text-sm font-bold sm:text-base"
                   style={{ color: "#3e0703" }}
                 >
-                  ₹{data.avgPrice.toFixed(0)}
+                  ₹{totalMonthlyRevenue.toLocaleString()}
                 </span>
               </div>
               <div
@@ -571,17 +883,17 @@ const Dashboard = () => {
                     className="truncate text-sm font-medium"
                     style={{ color: "#3e0703" }}
                   >
-                    Design Inventory
+                    Average Design Price
                   </p>
                   <p className="truncate text-xs" style={{ color: "#8c1007" }}>
-                    Total design count
+                    Mean price across portfolio
                   </p>
                 </div>
                 <span
                   className="ml-2 text-sm font-bold sm:text-base"
                   style={{ color: "#3e0703" }}
                 >
-                  {data.totalDesigns}
+                  ₹{data.avgPrice.toFixed(0)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
