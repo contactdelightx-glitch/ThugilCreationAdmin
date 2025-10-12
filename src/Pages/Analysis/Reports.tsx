@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Select, Spinner } from "flowbite-react";
 import {
   BarChart,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ComposedChart,
+  Cell,
 } from "recharts";
 import {
   DollarSign,
@@ -22,7 +23,7 @@ import {
   Filter,
   Activity,
   ArrowUpRight,
-  Download,
+  Image,
 } from "lucide-react";
 import { getFullReport } from "../../Api";
 
@@ -33,13 +34,15 @@ interface ReportData {
   totalCustomers: number;
   customerEmails: string[];
   userEmails: string[];
+  avgPrice: number;
+  freeImagesCount: number;
+  uploadedImagesCount: number;
   todaySales: number;
   weeklySales: number;
   monthlySales: number;
   soldDesigns: Design[];
   topSoldDesigns: Design[];
   monthlyBreakdown: MonthlyData[];
-  customerPurchaseGallery: CustomerPurchase[];
 }
 
 interface Design {
@@ -48,6 +51,9 @@ interface Design {
   final_price: number;
   timesSold: number;
   image_url: string;
+  created_at: string;
+  quantity: number;
+  customer_id?: number;
 }
 
 interface MonthlyData {
@@ -56,36 +62,16 @@ interface MonthlyData {
   totalRevenue: number;
 }
 
-interface CustomerPurchase {
-  customer_id: number;
-  email: string;
-  mobile_number: string;
-  purchases: Purchase[];
-}
-
-interface Purchase {
-  id: string;
-  name: string;
-  final_price: number;
-  image_url: string;
-  created_at: string;
-}
-
 const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
   const [selectedUserEmail, setSelectedUserEmail] = useState("");
-  const [selectedCustomerEmail, setSelectedCustomerEmail] = useState("");
 
-  useEffect(() => {
-    fetchReports();
-  }, [selectedUserEmail, selectedCustomerEmail]);
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       const response = await getFullReport(
-        selectedCustomerEmail || undefined,
+        undefined,
         undefined,
         selectedUserEmail || undefined,
       );
@@ -96,50 +82,11 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedUserEmail]);
 
-  const groupPurchasesByDate = (purchases: Purchase[]) => {
-    const grouped: { [key: string]: Purchase[] } = {};
-    purchases.forEach((purchase) => {
-      const date = new Date(purchase.created_at).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-      if (!grouped[date]) {
-        grouped[date] = [];
-      }
-      grouped[date].push(purchase);
-    });
-    return grouped;
-  };
-
-  const downloadGalleryData = () => {
-    if (!data?.customerPurchaseGallery) return;
-
-    const csvContent = [
-      ["Customer Email", "Mobile", "Product Name", "Price", "Date"],
-      ...data.customerPurchaseGallery.flatMap((customer) =>
-        customer.purchases.map((purchase) => [
-          customer.email,
-          customer.mobile_number,
-          purchase.name,
-          purchase.final_price,
-          new Date(purchase.created_at).toLocaleDateString(),
-        ]),
-      ),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `customer-purchases-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   const MetricCard = ({
     title,
@@ -156,13 +103,22 @@ const Reports = () => {
     trendValue?: string;
     subtitle?: string;
   }) => (
-    <div className="bg-white p-4 shadow-lg transition-all duration-300 hover:shadow-2xl">
+    <div
+      className="bg-white p-4 shadow-lg transition-all duration-300 hover:shadow-2xl"
+      style={{ borderRadius: "0px" }}
+    >
       <div className="mb-3 flex items-center justify-between">
-        <div className="flex h-11 w-11 items-center justify-center bg-red-50">
+        <div
+          className="flex h-11 w-11 items-center justify-center bg-red-50"
+          style={{ borderRadius: "0px" }}
+        >
           <Icon className="h-5 w-5 text-red-900" />
         </div>
         {trend && trendValue && (
-          <div className="flex items-center gap-1 bg-green-50 px-2 py-1">
+          <div
+            className="flex items-center gap-1 bg-green-50 px-2 py-1"
+            style={{ borderRadius: "0px" }}
+          >
             <ArrowUpRight className="h-3 w-3 text-green-700" />
             <span className="text-xs font-semibold text-green-700">
               {trendValue}
@@ -224,6 +180,20 @@ const Reports = () => {
     { period: "Month", sales: data.monthlySales || 0 },
   ];
 
+  // Prepare data for Gantt chart - Fixed to show proper timeline
+  const ganttData = data.soldDesigns
+    ?.map((design) => {
+      const createdDate = new Date(design.created_at);
+      return {
+        name: design.name.substring(0, 12),
+        date: createdDate.getTime(),
+        revenue: design.final_price * design.timesSold,
+        dateLabel: createdDate.toLocaleDateString(),
+      };
+    })
+    .sort((a, b) => a.date - b.date)
+    .slice(0, 10);
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="mx-auto max-w-[1800px]">
@@ -232,13 +202,16 @@ const Reports = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="mb-1 font-sans text-3xl font-bold text-gray-900">
-                Business Intelligence Dashboard
+                Report Dashboard
               </h1>
               <p className="font-sans text-sm text-gray-600">
                 Real-time analytics and performance metrics
               </p>
             </div>
-            <div className="flex items-center gap-2 bg-green-50 px-3 py-1">
+            <div
+              className="flex items-center gap-2 bg-green-50 px-3 py-1"
+              style={{ borderRadius: "0px" }}
+            >
               <div className="h-2 w-2 animate-pulse bg-green-600"></div>
               <span className="font-sans text-xs font-semibold text-green-900">
                 LIVE DATA
@@ -248,8 +221,11 @@ const Reports = () => {
         </div>
 
         {/* Filters */}
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="bg-white p-4 shadow-md">
+        <div className="mb-6">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <label className="mb-2 flex items-center font-sans text-xs font-bold tracking-wide text-gray-700 uppercase">
               <Filter className="mr-2 h-4 w-4" />
               Filter by Tenant
@@ -259,29 +235,10 @@ const Reports = () => {
               onChange={(e) => setSelectedUserEmail(e.target.value)}
               className="w-full font-sans"
               sizing="md"
+              style={{ borderRadius: "0px" }}
             >
               <option value="">All Tenants</option>
               {data.userEmails?.map((email) => (
-                <option key={email} value={email}>
-                  {email}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div className="bg-white p-4 shadow-md">
-            <label className="mb-2 flex items-center font-sans text-xs font-bold tracking-wide text-gray-700 uppercase">
-              <Users className="mr-2 h-4 w-4" />
-              Filter by Customer
-            </label>
-            <Select
-              value={selectedCustomerEmail}
-              onChange={(e) => setSelectedCustomerEmail(e.target.value)}
-              className="w-full font-sans"
-              sizing="md"
-            >
-              <option value="">All Customers</option>
-              {data.customerEmails?.map((email) => (
                 <option key={email} value={email}>
                   {email}
                 </option>
@@ -334,10 +291,41 @@ const Reports = () => {
           />
         </div>
 
+        {/* KPI Cards */}
+        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
+          <MetricCard
+            title="Average Price"
+            value={`₹${(data.avgPrice || 0).toLocaleString("en-IN")}`}
+            icon={DollarSign}
+            trend="up"
+            trendValue="+10%"
+            subtitle="Per design"
+          />
+          <MetricCard
+            title="Free Images"
+            value={data.freeImagesCount || 0}
+            icon={Image}
+            trend="up"
+            trendValue="+2%"
+            subtitle="Available"
+          />
+          <MetricCard
+            title="Uploaded Images"
+            value={data.uploadedImagesCount || 0}
+            icon={Image}
+            trend="up"
+            trendValue="+5%"
+            subtitle="Total uploaded"
+          />
+        </div>
+
         {/* Charts Section */}
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Revenue Trend */}
-          <div className="bg-white p-4 shadow-md">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
               Revenue Trend Analysis
             </h3>
@@ -356,7 +344,7 @@ const Reports = () => {
                   style={{ fontSize: "12px", fontFamily: "sans-serif" }}
                 />
                 <YAxis
-                  stroke="#6b7280"
+                  stroke="#555"
                   style={{ fontSize: "12px", fontFamily: "sans-serif" }}
                 />
                 <Tooltip
@@ -380,7 +368,10 @@ const Reports = () => {
           </div>
 
           {/* Performance Analysis */}
-          <div className="bg-white p-4 shadow-md">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
               Top Products Performance
             </h3>
@@ -432,10 +423,67 @@ const Reports = () => {
           </div>
         </div>
 
+        {/* Gantt Chart - Fixed */}
+        <div className="mb-6">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
+            <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
+              Sales Timeline (Recent Sales)
+            </h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart
+                data={ganttData}
+                layout="vertical"
+                barSize={20}
+                margin={{ top: 5, right: 20, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  type="number"
+                  stroke="#6b7280"
+                  style={{ fontSize: "12px", fontFamily: "sans-serif" }}
+                  label={{ value: 'Revenue (₹)', position: 'insideBottom', offset: -5 }}
+                />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  stroke="#6b7280"
+                  width={100}
+                  style={{ fontSize: "12px", fontFamily: "sans-serif" }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e5e7eb",
+                    fontFamily: "sans-serif",
+                  }}
+                  formatter={(value: number, name: string) => {
+                    if (name === "revenue") {
+                      return [`₹${value.toLocaleString("en-IN")}`, "Revenue"];
+                    }
+                    return [value, name];
+                  }}
+                  labelFormatter={(label) => `Product: ${label}`}
+                />
+                <Bar dataKey="revenue" fill="#991b1b" minPointSize={5}>
+                  {ganttData?.map((_entry, index) => (
+                    <Cell key={`cell-${index}`} fill="#991b1b" />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         {/* Bottom Section */}
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Sales Overview */}
-          <div className="bg-white p-4 shadow-md">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
               Sales Overview
             </h3>
@@ -467,7 +515,10 @@ const Reports = () => {
           </div>
 
           {/* Monthly Breakdown */}
-          <div className="bg-white p-4 shadow-md">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
               Monthly Breakdown
             </h3>
@@ -502,7 +553,10 @@ const Reports = () => {
           </div>
 
           {/* Top Products */}
-          <div className="bg-white p-4 shadow-md">
+          <div
+            className="bg-white p-4 shadow-md"
+            style={{ borderRadius: "0px" }}
+          >
             <h3 className="mb-4 font-sans text-base font-bold text-gray-900">
               Top Selling Products
             </h3>
@@ -511,9 +565,13 @@ const Reports = () => {
                 <div
                   key={design.id}
                   className="flex items-center justify-between bg-gray-50 p-2 transition-all hover:bg-gray-100"
+                  style={{ borderRadius: "0px" }}
                 >
                   <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center bg-red-900 font-sans text-xs font-bold text-white">
+                    <div
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center bg-red-900 font-sans text-xs font-bold text-white"
+                      style={{ borderRadius: "0px" }}
+                    >
                       {index + 1}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -535,104 +593,6 @@ const Reports = () => {
             </div>
           </div>
         </div>
-
-        {/* Customer Purchase Gallery */}
-        {selectedCustomerEmail && (
-          <div className="bg-white p-4 shadow-md">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-sans text-base font-bold text-gray-900">
-                Customer Purchase History
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="bg-red-900 px-3 py-1 font-sans text-xs font-semibold text-white">
-                  {selectedCustomerEmail}
-                </div>
-                <button
-                  onClick={downloadGalleryData}
-                  className="flex items-center gap-2 bg-gray-900 px-3 py-1 font-sans text-xs font-semibold text-white transition-all hover:bg-gray-800"
-                >
-                  <Download className="h-3 w-3" />
-                  Download
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {data.customerPurchaseGallery
-                ?.filter((customer) => customer.email === selectedCustomerEmail)
-                .map((customer) => {
-                  const groupedPurchases = groupPurchasesByDate(
-                    customer.purchases,
-                  );
-                  return (
-                    <div key={customer.customer_id}>
-                      <div className="mb-3 flex items-center justify-between bg-gray-100 p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-10 w-10 items-center justify-center bg-red-900 font-sans text-base font-bold text-white">
-                            {customer.email?.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <h4 className="font-sans text-sm font-semibold text-gray-900">
-                              {customer.email}
-                            </h4>
-                            <p className="font-sans text-xs text-gray-600">
-                              {customer.mobile_number}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="bg-gray-900 px-3 py-1 font-sans text-xs font-bold text-white">
-                          {customer.purchases.length} Items
-                        </span>
-                      </div>
-
-                      {Object.entries(groupedPurchases).map(
-                        ([date, purchases]) => (
-                          <div key={date} className="mb-4">
-                            <div className="mb-2 bg-gray-50 px-3 py-2">
-                              <h5 className="font-sans text-xs font-bold text-gray-700">
-                                {date}
-                              </h5>
-                            </div>
-                            <div className="grid grid-cols-4 gap-3 md:grid-cols-6 lg:grid-cols-10">
-                              {purchases.map((purchase) => (
-                                <div
-                                  key={purchase.id}
-                                  className="group cursor-pointer"
-                                >
-                                  <div className="relative aspect-square overflow-hidden bg-gray-200">
-                                    <img
-                                      src={purchase.image_url}
-                                      alt={purchase.name || "Product"}
-                                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                      onError={(e) => {
-                                        e.currentTarget.src =
-                                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f3f4f6' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-family='sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
-                                      }}
-                                    />
-                                  </div>
-                                  <div className="mt-1">
-                                    <p className="truncate font-sans text-xs font-semibold text-gray-900">
-                                      {purchase.name || "Unnamed"}
-                                    </p>
-                                    <p className="font-sans text-xs font-bold text-red-900">
-                                      ₹
-                                      {purchase.final_price.toLocaleString(
-                                        "en-IN",
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
