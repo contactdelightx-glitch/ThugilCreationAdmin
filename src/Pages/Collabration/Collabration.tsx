@@ -1,24 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Edit2, Trash2, Eye } from "lucide-react";
-import { getAllUsers, createUser } from "../../Api";
+import { getAllUsers, createUser, updateUser } from "../../Api";
 import NewUser from "./NewUser";
-
-async function editUser(
-  id: number,
-  email: string,
-  password?: string,
-  status?: string,
-  permissions?: string[],
-) {
-  return fetch(`/user/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password, status, permissions }),
-  });
-}
 
 interface User {
   id: number;
@@ -29,11 +13,41 @@ interface User {
   permissions?: string[];
 }
 
+interface UserTokenData {
+  id: number;
+  email: string;
+  status: string;
+}
+
 export default function CollaborationPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [isNewUserModalOpen, setIsNewUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    user: User | null;
+  }>({ isOpen: false, user: null });
+  const [currentUser, setCurrentUser] = useState<UserTokenData | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Get current user from token
+  useEffect(() => {
+    const tokenData = localStorage.getItem("token");
+    if (tokenData) {
+      try {
+        // Decode the JWT token to get user info
+        const tokenPayload = JSON.parse(atob(tokenData.split('.')[1]));
+        setCurrentUser({
+          id: tokenPayload.id,
+          email: tokenPayload.email,
+          status: tokenPayload.status
+        });
+      } catch (error) {
+        console.error("Error parsing token:", error);
+      }
+    }
+  }, []);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -106,6 +120,53 @@ export default function CollaborationPanel() {
     setEditingUser(null);
   };
 
+  const handleDeleteClick = (user: User) => {
+    // Check if user is trying to delete their own account
+    if (currentUser && currentUser.email === user.email) {
+      alert("You cannot delete your own account.");
+      return;
+    }
+    setDeleteConfirmModal({ isOpen: true, user });
+  };
+
+  const handleCloseDeleteModal = () => {
+    setDeleteConfirmModal({ isOpen: false, user: null });
+    setDeleting(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmModal.user) return;
+
+    const user = deleteConfirmModal.user;
+    
+    // Double check - user shouldn't be able to delete their own account
+    if (currentUser && currentUser.email === user.email) {
+      alert("You cannot delete your own account.");
+      setDeleteConfirmModal({ isOpen: false, user: null });
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`${'http://localhost:4000'}/user/${user.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete user");
+      }
+      fetchUsers();
+      setDeleteConfirmModal({ isOpen: false, user: null });
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      alert(error.message || "Failed to delete user");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleSaveUser = async (userData: {
     email: string;
     password?: string;
@@ -115,13 +176,13 @@ export default function CollaborationPanel() {
     try {
       let response;
       if (editingUser) {
-        response = await editUser(
-          editingUser.id,
-          userData.email,
-          userData.password,
-          userData.status,
-          userData.permissions,
-        );
+        // Use the updateUser function from API
+        response = await updateUser(editingUser.id, {
+          email: userData.email,
+          password: userData.password,
+          status: userData.status,
+          permissions: userData.permissions || [],
+        });
       } else {
         if (!userData.email || !userData.password) {
           throw new Error("Email and password are required");
@@ -133,10 +194,12 @@ export default function CollaborationPanel() {
           userData.status,
         );
       }
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to save user");
       }
+      
       setIsNewUserModalOpen(false);
       setEditingUser(null);
       fetchUsers();
@@ -353,6 +416,7 @@ export default function CollaborationPanel() {
                           <Edit2 className={iconClass} />
                         </button>
                         <button
+                          onClick={() => handleDeleteClick(user)}
                           className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
                         >
                           <Trash2 className={iconClass} />
@@ -404,6 +468,38 @@ export default function CollaborationPanel() {
         onSave={handleSaveUser}
         editingUser={editingUser}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal.isOpen && deleteConfirmModal.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-none bg-white shadow-xl">
+            <div className="rounded-none p-6">
+              <h3 className="mb-2 rounded-none text-lg font-semibold text-gray-900">
+                Delete User
+              </h3>
+              <p className="mb-4 rounded-none text-sm text-gray-600">
+                Are you sure you want to delete the user "
+                {deleteConfirmModal.user.email}"? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3 rounded-none">
+                <button
+                  onClick={handleCloseDeleteModal}
+                  className="rounded-none border border-[var(--color-primary)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-light)] focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="rounded-none border border-transparent bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

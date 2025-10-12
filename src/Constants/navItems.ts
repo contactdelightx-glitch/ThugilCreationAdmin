@@ -72,12 +72,6 @@ export const mainNavItems: MenuItem[] = [
         icon: FileText,
         href: "/home/analytics/reports",
       },
-      {
-        id: "insights",
-        name: "Insights",
-        icon: Home,
-        href: "/home/analytics/insights",
-      },
     ],
   },
   {

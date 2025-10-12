@@ -104,7 +104,7 @@ const Sidebar = () => {
       for (const item of items) {
         if (item.submenu) {
           const childMatch = item.submenu.find(
-            (subItem) => subItem.href === currentPath,
+            (subItem) => subItem.href === currentPath, // Use currentPath instead of location.pathname
           );
           if (childMatch) {
             return item.id;
@@ -169,7 +169,6 @@ const Sidebar = () => {
     return (
       <li key={item.id}>
         {hasSubmenu ? (
-          // Parent item with submenu - only toggles submenu
           <div
             className={`group flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all duration-200 ${
               isActive
@@ -209,7 +208,6 @@ const Sidebar = () => {
             </div>
           </div>
         ) : (
-          // Leaf item - uses Link for navigation
           <Link
             to={item.href}
             className={`group flex items-center justify-between rounded-lg px-4 py-3 transition-all duration-200 ${
@@ -257,7 +255,7 @@ const Sidebar = () => {
   return (
     <>
       <div
-        className={`fixed inset-y-0 left-0 z-40 ${isMobile ? "w-16" : "w-80"} flex flex-col border-r border-[var(--color-primary-dark)] bg-gradient-to-b from-[var(--color-primary-dark)] to-[var(--color-primary)] shadow-2xl transition-all duration-300`}
+        className={`fixed inset-y-0 left-0 z-40 ${isMobile ? "w-16" : "w-80"} flex flex-col border-r border-[var(--color-primary-dark)] bg-gradient-to-b from-[var(--color-primary-dark)] to-[var(--color-primary)] shadow-2xl transition-all duration-300 min-h-screen`}
       >
         <div className="border-b border-[var(--color-primary-dark)] p-4">
           <div className="flex items-center space-x-3">
@@ -281,7 +279,7 @@ const Sidebar = () => {
           </div>
         </div>
 
-        <nav className="custom-scrollbar flex-1 overflow-y-auto py-6">
+        <nav className="custom-scrollbar flex-1 overflow-y-auto py-6 min-h-0">
           <ul className="space-y-2 px-4">
             {filteredMainNav.map((item) => renderMenuItem(item))}
           </ul>
@@ -317,7 +315,7 @@ const Sidebar = () => {
             </button>
           </div>
 
-          <div className={`mt-4 text-center ${isMobile ? "hidden" : "block"}`}>
+          <div className={`mt-2 text-center ${isMobile ? "hidden" : "block"}`}>
             <div className="text-xs text-gray-500">© 2025 Thugil Creation</div>
             <div className="mt-1 text-[10px] text-gray-600">
               v2.2 • Enterprise
@@ -346,6 +344,12 @@ const Sidebar = () => {
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
+        }
+        .custom-scrollbar {
+          -webkit-overflow-scrolling: touch;
+        }
+        div[style*="fixed"] {
+          contain: strict;
         }
       `}</style>
     </>

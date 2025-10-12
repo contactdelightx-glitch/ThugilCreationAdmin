@@ -6,9 +6,6 @@ interface FilterState {
   selectedStyle: string;
   selectedJacquard: string;
   selectedLabel: string;
-  epiFilter: string;
-  ppiFilter: string;
-  hooksFilter: string;
 }
 
 interface DesignFiltersProps {
@@ -48,40 +45,24 @@ export default function DesignFilters({
     onFilterChange({ selectedStyle: value });
   };
 
-  const handleJacquardChange = (value: string) => {
-    onFilterChange({ selectedJacquard: value });
-  };
-
-  const handleLabelChange = (value: string) => {
-    onFilterChange({ selectedLabel: value });
-  };
-
-  const handleEpiChange = (value: string) => {
-    onFilterChange({ epiFilter: value });
-  };
-
-  const handlePpiChange = (value: string) => {
-    onFilterChange({ ppiFilter: value });
-  };
-
-  const handleHooksChange = (value: string) => {
-    onFilterChange({ hooksFilter: value });
-  };
-
   return (
     <div className="border-b border-gray-200 bg-white px-3 py-2 sm:px-4 lg:px-6">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <div className="relative w-full sm:max-w-md">
+        {/* Search + Filter Buttons Row */}
+        <div className="flex flex-row flex-wrap items-center gap-2 sm:gap-3">
+          {/* Search (not full width now) */}
+          <div className="relative w-48 sm:w-60 md:w-72">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, product ID, or email..."
+              placeholder="Search By Design Name Only"
               value={filters.searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full border border-gray-300 py-2 pr-3 pl-9 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:py-2 sm:pr-4 sm:pl-10 sm:text-sm"
+              className="w-full border border-gray-300 py-2 pr-3 pl-9 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
             />
           </div>
+
+          {/* Filter + Clear Buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => onShowFiltersChange(!showFilters)}
@@ -95,6 +76,7 @@ export default function DesignFilters({
                 </span>
               )}
             </button>
+
             {hasActiveFilters && (
               <button
                 onClick={onClearFilters}
@@ -107,12 +89,10 @@ export default function DesignFilters({
           </div>
         </div>
 
+        {/* Filters Section */}
         {showFilters && (
-          <div className="grid grid-cols-1 gap-3 border-t border-gray-200 pt-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                Saree Style
-              </label>
+          <div className="flex flex-col gap-3 border-t border-gray-200 pt-3 sm:flex-row sm:items-center sm:gap-4 sm:border-0 sm:pt-0 lg:flex-nowrap">
+            <div className="w-48 sm:w-60 md:w-72">
               <select
                 value={filters.selectedStyle}
                 onChange={(e) => handleStyleChange(e.target.value)}
@@ -125,81 +105,6 @@ export default function DesignFilters({
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                Jacquard Type
-              </label>
-              <select
-                value={filters.selectedJacquard}
-                onChange={(e) => handleJacquardChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
-              >
-                <option value="">All Types</option>
-                {getUniqueValues("jacquard_type").map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                Label
-              </label>
-              <select
-                value={filters.selectedLabel}
-                onChange={(e) => handleLabelChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
-              >
-                <option value="">All Labels</option>
-                {getUniqueValues("label").map((label) => (
-                  <option key={label} value={label}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                EPI
-              </label>
-              <input
-                type="number"
-                placeholder="Filter by EPI"
-                value={filters.epiFilter}
-                onChange={(e) => handleEpiChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                PPI
-              </label>
-              <input
-                type="number"
-                placeholder="Filter by PPI"
-                value={filters.ppiFilter}
-                onChange={(e) => handlePpiChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                Hooks
-              </label>
-              <input
-                type="number"
-                placeholder="Filter by hooks"
-                value={filters.hooksFilter}
-                onChange={(e) => handleHooksChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
-              />
             </div>
           </div>
         )}

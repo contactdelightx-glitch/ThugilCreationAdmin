@@ -46,6 +46,45 @@ export default function RecentAdded() {
   const [designToDelete, setDesignToDelete] = useState<Design | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [imageIndices, setImageIndices] = useState<Record<number, number>>({});
+
+  // Helper function to parse multiple image URLs
+  const getImageUrls = (urlString: string): string[] => {
+    const urls = urlString
+      .split(" ")
+      .filter((url) => url && url.startsWith("https://"));
+    return urls.length > 0 ? urls : [urlString];
+  };
+
+  // Initialize image indices for all designs
+  useEffect(() => {
+    setImageIndices((prev) => {
+      const newIndices: Record<number, number> = {};
+      designs.forEach((design) => {
+        newIndices[design.id] = prev[design.id] ?? 0;
+      });
+      return newIndices;
+    });
+  }, [designs]);
+
+  // Carousel effect for cycling images
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setImageIndices((prevIndices) => {
+        const newIndices = { ...prevIndices };
+        designs.forEach((design) => {
+          const imageUrls = getImageUrls(design.image_url);
+          if (imageUrls.length > 1) {
+            newIndices[design.id] =
+              (prevIndices[design.id] ?? 0 + 1) % imageUrls.length;
+          }
+        });
+        return newIndices;
+      });
+    }, 3000); // Change image every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [designs]);
 
   const fetchDesigns = useCallback(async () => {
     setLoading(true);
@@ -257,97 +296,110 @@ export default function RecentAdded() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {designs.map((design) => (
-                  <tr
-                    key={design.id}
-                    className="transition-colors hover:bg-gray-50"
-                  >
-                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 flex-shrink-0 overflow-hidden bg-gray-100 sm:h-10 sm:w-10">
-                          <img
-                            src={design.image_url}
-                            alt={design.name}
-                            className="h-full w-full object-cover"
-                            onError={(e) =>
-                              (e.currentTarget.src =
-                                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
-                            }
-                          />
-                        </div>
-                        <div className="ml-2 min-w-0 sm:ml-3">
-                          <div className="max-w-[120px] truncate text-xs font-semibold text-gray-900 sm:max-w-none sm:text-sm">
-                            {design.name}
+                {designs.map((design) => {
+                  const imageUrls = getImageUrls(design.image_url);
+                  const currentImageIndex = imageIndices[design.id] ?? 0;
+                  const currentImageUrl =
+                    imageUrls[currentImageIndex] || design.image_url;
+
+                  return (
+                    <tr
+                      key={design.id}
+                      className="transition-colors hover:bg-gray-50"
+                    >
+                      <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                        <div className="flex items-center">
+                          <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden bg-gray-100 sm:h-10 sm:w-10">
+                            <img
+                              src={currentImageUrl}
+                              alt={`${design.name} - Image ${currentImageIndex + 1}`}
+                              className="h-full w-full object-cover transition-opacity duration-500"
+                              onError={(e) =>
+                                (e.currentTarget.src =
+                                  'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
+                              }
+                            />
+                            {imageUrls.length > 1 && (
+                              <div className="bg-opacity-50 absolute right-0 bottom-0 bg-black px-1 py-0.5 text-xs text-white">
+                                {currentImageIndex + 1}/{imageUrls.length}
+                              </div>
+                            )}
                           </div>
-                          <div className="max-w-[120px] truncate text-xs text-gray-500 sm:max-w-none">
-                            {design.email}
-                          </div>
-                          <div className="mt-0.5 text-xs text-gray-400 sm:mt-1">
-                            {design.cards}c • {design.hooks}h • {design.epi} EPI
+                          <div className="ml-2 min-w-0 sm:ml-3">
+                            <div className="max-w-[120px] truncate text-xs font-semibold text-gray-900 sm:max-w-none sm:text-sm">
+                              {design.name}
+                            </div>
+                            <div className="max-w-[120px] truncate text-xs text-gray-500 sm:max-w-none">
+                              {design.email}
+                            </div>
+                            <div className="mt-0.5 text-xs text-gray-400 sm:mt-1">
+                              {design.cards}c • {design.hooks}h • {design.epi}{" "}
+                              EPI
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
-                      <div className="font-mono text-xs text-gray-600 sm:text-sm">
-                        {design.product_id}
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
-                      <div className="text-xs font-semibold text-gray-900 sm:text-sm">
-                        {getSareeStyleDisplay(design.saree_style)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {design.harnessbuild} • {design.ppi} PPI
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${getLabelColor(design.label)}`}
-                      >
-                        {design.label
-                          ? design.label.charAt(0).toUpperCase() +
-                            design.label.slice(1)
-                          : "None"}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
-                      <div className="text-xs font-semibold text-gray-900 sm:text-sm">
-                        ₹{design.final_price}
-                      </div>
-                      {design.listing_rate !== design.final_price && (
-                        <div className="text-xs text-gray-500 line-through">
-                          ₹{design.listing_rate}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                        <div className="font-mono text-xs text-gray-600 sm:text-sm">
+                          {design.product_id}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-xs whitespace-nowrap text-gray-600 sm:px-3 sm:py-3 sm:text-sm">
-                      {formatDate(design.created_at)}
-                    </td>
-                    <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3 sm:py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          className={`${buttonClass} cursor-pointer`}
-                          onClick={() => handleViewDesign(design)}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                        <div className="text-xs font-semibold text-gray-900 sm:text-sm">
+                          {getSareeStyleDisplay(design.saree_style)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {design.harnessbuild} • {design.ppi} PPI
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 ${getLabelColor(design.label)}`}
                         >
-                          <Eye className={iconClass} />
-                        </button>
-                        <button
-                          className={`${buttonClass} cursor-pointer`}
-                          onClick={() => handleEditDesign(design)}
-                        >
-                          <Edit2 className={iconClass} />
-                        </button>
-                        <button
-                          className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
-                          onClick={() => handleDeleteDesign(design)}
-                        >
-                          <Trash2 className={iconClass} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {design.label
+                            ? design.label.charAt(0).toUpperCase() +
+                              design.label.slice(1)
+                            : "None"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap sm:px-3 sm:py-3">
+                        <div className="text-xs font-semibold text-gray-900 sm:text-sm">
+                          ₹{design.final_price}
+                        </div>
+                        {design.listing_rate !== design.final_price && (
+                          <div className="text-xs text-gray-500 line-through">
+                            ₹{design.listing_rate}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 py-2 text-xs whitespace-nowrap text-gray-600 sm:px-3 sm:py-3 sm:text-sm">
+                        {formatDate(design.created_at)}
+                      </td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3 sm:py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            className={`${buttonClass} cursor-pointer`}
+                            onClick={() => handleViewDesign(design)}
+                          >
+                            <Eye className={iconClass} />
+                          </button>
+                          <button
+                            className={`${buttonClass} cursor-pointer`}
+                            onClick={() => handleEditDesign(design)}
+                          >
+                            <Edit2 className={iconClass} />
+                          </button>
+                          <button
+                            className={`${buttonClass} cursor-pointer hover:bg-red-100 hover:text-red-600`}
+                            onClick={() => handleDeleteDesign(design)}
+                          >
+                            <Trash2 className={iconClass} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -390,26 +442,26 @@ export default function RecentAdded() {
 
         {isDeleteModalOpen && designToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
-              <div className="p-6">
-                <h3 className="mb-2 text-lg font-semibold text-gray-900">
+            <div className="w-full max-w-md rounded-none bg-white shadow-xl">
+              <div className="rounded-none p-6">
+                <h3 className="mb-2 rounded-none text-lg font-semibold text-gray-900">
                   Delete Design
                 </h3>
-                <p className="mb-4 text-sm text-gray-600">
+                <p className="mb-4 rounded-none text-sm text-gray-600">
                   Are you sure you want to delete the design "
                   {designToDelete.name}"? This action cannot be undone.
                 </p>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 rounded-none">
                   <button
                     onClick={handleCloseDeleteModal}
-                    className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
+                    className="rounded-none border border-[var(--color-primary)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-light)] focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmDelete}
                     disabled={deleting}
-                    className="rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-none border border-transparent bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-dark)] focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? "Deleting..." : "Delete"}
                   </button>

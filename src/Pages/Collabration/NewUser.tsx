@@ -1,3 +1,4 @@
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import {
@@ -375,7 +376,10 @@ export default function NewUser({
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    className="w-full border border-gray-300 px-3 py-2.5 text-sm placeholder-gray-400 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
+                    disabled={!!editingUser}
+                    className={`w-full border border-gray-300 px-3 py-2.5 text-sm placeholder-gray-400 transition-colors focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none ${
+                      editingUser ? "bg-gray-100 cursor-not-allowed" : ""
+                    }`}
                     placeholder="Enter email address"
                     style={{ borderRadius: "0px" }}
                   />

@@ -22,13 +22,40 @@ export default function DesignUpdateModal({
   const [currentMode, setCurrentMode] = useState<"view" | "edit">(mode);
   const [formData, setFormData] = useState<Partial<Design>>(design);
   const [saving, setSaving] = useState(false);
+  const [imageIndices, setImageIndices] = useState<{
+    image_url: number;
+    original_image_url: number;
+  }>({ image_url: 0, original_image_url: 0 });
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+  // Helper function to parse multiple image URLs
+  const getImageUrls = (urlString: string): string[] => {
+    const urls = urlString
+      .split(" ")
+      .filter((url) => url && url.startsWith("https://"));
+    return urls.length > 0 ? urls : [urlString];
+  };
+
+  // Carousel effect for cycling images
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setImageIndices((prevIndices) => {
+        const newIndices = { ...prevIndices };
+        const imageUrls = getImageUrls(formData.image_url as string || design.image_url);
+        const originalImageUrls = getImageUrls(formData.original_image_url as string || design.original_image_url);
+
+        if (imageUrls.length > 1) {
+          newIndices.image_url = (prevIndices.image_url + 1) % imageUrls.length;
+        }
+        if (originalImageUrls.length > 1) {
+          newIndices.original_image_url = (prevIndices.original_image_url + 1) % originalImageUrls.length;
+        }
+
+        return newIndices;
+      });
+    }, 3000); // Change image every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [formData.image_url, formData.original_image_url, design.image_url, design.original_image_url]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -36,6 +63,13 @@ export default function DesignUpdateModal({
       document.body.style.overflow = "";
     };
   }, []);
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
   const formatValue = (val: unknown) => {
     if (typeof val !== "string") return JSON.stringify(val);
@@ -47,6 +81,13 @@ export default function DesignUpdateModal({
       ...prev,
       [field]: value,
     }));
+    // Reset image index for the changed field
+    if (field === "image_url" || field === "original_image_url") {
+      setImageIndices((prev) => ({
+        ...prev,
+        [field]: 0,
+      }));
+    }
   };
 
   const handleSave = async () => {
@@ -94,6 +135,11 @@ export default function DesignUpdateModal({
     );
   };
 
+  const headerImageUrls = getImageUrls(formData.original_image_url as string || design.original_image_url);
+  const sidebarImageUrls = getImageUrls(formData.image_url as string || design.image_url);
+  const currentHeaderImageUrl = headerImageUrls[imageIndices.original_image_url] || design.original_image_url;
+  const currentSidebarImageUrl = sidebarImageUrls[imageIndices.image_url] || design.image_url;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/60" />
@@ -111,12 +157,21 @@ export default function DesignUpdateModal({
                   <div className="absolute inset-0 animate-pulse bg-[var(--color-primary-light)]" />
                 )}
                 <img
-                  src={design.original_image_url}
-                  alt=""
+                  src={currentHeaderImageUrl}
+                  alt={`${design.name} - Header Image ${imageIndices.original_image_url + 1}`}
                   className={`h-8 w-8 border border-white/30 object-cover sm:h-10 sm:w-10 ${isHeaderImageLoaded ? "opacity-100" : "opacity-0"}`}
                   onLoad={() => setIsHeaderImageLoaded(true)}
-                  onError={() => setIsHeaderImageLoaded(true)}
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E';
+                    setIsHeaderImageLoaded(true);
+                  }}
                 />
+                {headerImageUrls.length > 1 && (
+                  <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 px-1 py-0.5 text-xs text-white">
+                    {imageIndices.original_image_url + 1}/{headerImageUrls.length}
+                  </div>
+                )}
               </div>
             )}
             <div>
@@ -150,18 +205,27 @@ export default function DesignUpdateModal({
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
           <div className="flex flex-col md:grid md:grid-cols-3 md:gap-0">
             <div className="space-y-3 border-b border-gray-200 bg-gray-50 p-3 md:col-span-1 md:border-r md:border-b-0 md:p-4">
-              {design.original_image_url && (
+              {design.image_url && (
                 <div className="relative h-[120px] w-full sm:h-[150px] md:aspect-square md:h-auto">
                   {!isSidebarImageLoaded && (
                     <div className="absolute inset-0 animate-pulse bg-[var(--color-primary-light)]" />
                   )}
                   <img
-                    src={design.original_image_url}
-                    alt=""
+                    src={currentSidebarImageUrl}
+                    alt={`${design.name} - Sidebar Image ${imageIndices.image_url + 1}`}
                     className={`h-full w-full border border-gray-300 object-cover ${isSidebarImageLoaded ? "opacity-100" : "opacity-0"}`}
                     onLoad={() => setIsSidebarImageLoaded(true)}
-                    onError={() => setIsSidebarImageLoaded(true)}
+                    onError={(e) => {
+                      e.currentTarget.src =
+                        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E';
+                      setIsSidebarImageLoaded(true);
+                    }}
                   />
+                  {sidebarImageUrls.length > 1 && (
+                    <div className="absolute bottom-0 right-0 bg-black bg-opacity-50 px-1 py-0.5 text-xs text-white">
+                      {imageIndices.image_url + 1}/{sidebarImageUrls.length}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -38,7 +38,12 @@ export async function getAllUsers() {
 
 export async function updateUser(
   id: number,
-  data: { email?: string; password?: string; status?: string },
+  data: {
+    email?: string;
+    password?: string;
+    status?: string;
+    permissions?: string[];
+  },
 ) {
   return fetch(`${API_BASE_URL}/user/${id}`, {
     method: "PUT",
@@ -48,7 +53,6 @@ export async function updateUser(
     body: JSON.stringify(data),
   });
 }
-
 export async function deleteUser(id: number) {
   return fetch(`${API_BASE_URL}/user/${id}`, {
     method: "DELETE",

@@ -8,6 +8,7 @@ import RecentAdded from "./Pages/DesignStudio/RecentAdded";
 import DigitalAssets from "./Pages/DigitalAssets/DigitalAssets";
 import Collabration from "./Pages/Collabration/Collabration";
 import Reports from "./Pages/Analysis/Reports";
+import Orders from "./Pages/Analysis/OrdersDashboard";
 import Support from "./Pages/Support";
 import Settings from "./Pages/Settings";
 
@@ -41,6 +42,7 @@ export default function AppRoutes() {
           {/* Analytics / Reports */}
           <Route path="analytics">
             <Route path="reports" element={<Reports />} />
+            <Route path="orders" element={<Orders />} />
           </Route>
 
           {/* Support and Settings */}
