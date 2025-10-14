@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Label, TextInput, Select, Button, Alert } from "flowbite-react";
 import {
   IndianRupee,
@@ -62,7 +62,7 @@ const fieldMetadata: Record<string, FieldMetadata> = {
   listingRate: { label: "Listing Rate (₹)", type: "number", required: true, icon: <IndianRupee className="h-4 w-4" /> },
   finalPrice: { label: "Final Price (₹)", type: "number", required: true, icon: <IndianRupee className="h-4 w-4" /> },
   label: { label: "Label", type: "select", options: ["new", "sale", "featured"], required: true, icon: <Tag className="h-4 w-4" /> },
-  emailDropdown: { label: "Email Dropdown", type: "text", required: true, icon: <Mail className="h-4 w-4" /> },
+  emailDropdown: { label: "Email Dropdown", type: "select", options: JSON.parse(localStorage.getItem("emails") || "[]"), required: true, icon: <Mail className="h-4 w-4" /> },
   originalImageUrl: { label: "Original Image URL", type: "text", required: true, icon: <Link className="h-4 w-4" /> },
   brHooks: { label: "BR Hooks", type: "text", required: true, icon: <Hash className="h-4 w-4" /> },
   byHooks: { label: "BY Hooks", type: "text", required: true, icon: <Hash className="h-4 w-4" /> },
@@ -93,6 +93,14 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
   const [formData, setFormData] = useState<DesignFormData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Initialize emailDropdown with single email if only one exists
+  useEffect(() => {
+    const emails = JSON.parse(localStorage.getItem("emails") || "[]");
+    if (emails.length === 1 && fieldConfig[designType].includes("emailDropdown")) {
+      setFormData((prev) => ({ ...prev, emailDropdown: emails[0] }));
+    }
+  }, [designType]);
 
   const validatePriceFields = (currentData: DesignFormData) => {
     const listingRate = Number(currentData.listingRate);
@@ -162,7 +170,7 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ designType, ...formData });
+      await onSubmit({ designType, email: formData.emailDropdown, ...formData });
       setFormData({});
       setDesignType("Butta");
     } finally {
@@ -179,13 +187,18 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
     const urls = isImageUrlField && typeof value === "string" ? extractUrls(value) : [];
 
     if (meta.type === "select") {
+      const isEmailDropdown = fieldName === "emailDropdown";
+      const emailOptions = isEmailDropdown ? JSON.parse(localStorage.getItem("emails") || "[]") : (meta as SelectField).options;
+      const isDisabled = isEmailDropdown && emailOptions.length === 1;
+
       return (
         <>
           <Select
             id={fieldName}
-            value={value as string}
+            value={isEmailDropdown && emailOptions.length === 1 ? emailOptions[0] : (value as string)}
             onChange={(e) => handleInputChange(fieldName, e.target.value)}
             required
+            disabled={isDisabled}
             className="text-black"
             style={{
               borderRadius: "0px",
@@ -197,8 +210,8 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
               boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
             }}
           >
-            <option value="">Select {meta.label.replace(" (₹)", "")}</option>
-            {(meta as SelectField).options.map((option) => (
+            {!isDisabled && <option value="">Select {meta.label.replace(" (₹)", "")}</option>}
+            {emailOptions.map((option: string) => (
               <option key={option} value={option} className="text-black">
                 {option}
               </option>

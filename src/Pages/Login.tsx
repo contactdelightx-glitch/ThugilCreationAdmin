@@ -74,11 +74,15 @@ export default function Login() {
       if (!res.ok) {
         setError(data.error || "Login failed");
       } else {
-        // Store token and permissions in localStorage
+        // Store token, permissions, and emails in localStorage
         localStorage.setItem("token", data.token);
         localStorage.setItem(
           "permissions",
           JSON.stringify(data.permissions || []),
+        );
+        localStorage.setItem(
+          "emails",
+          JSON.stringify(data.emails || []),
         );
 
         // If remember me is checked, also store in a more persistent way
