@@ -118,6 +118,40 @@ export async function createDesign(data: object) {
   }).then((res) => res.json());
 }
 
+export async function uploadImage(file: File, emailid: string) {
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("emailid", emailid);
+
+  const res = await fetch(`${API_BASE_URL}/images/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok)
+    throw new Error((await res.json()).error || "Failed to upload image");
+  return (await res.json()).message;
+}
+export async function getImagesByEmail(emailid: string) {
+  const res = await fetch(`${API_BASE_URL}/images/by-email/${encodeURIComponent(emailid)}`);
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error || "Failed to fetch images by email");
+  }
+  return res.json();
+}
+export async function deleteImageByIdAndEmail(id: number, emailid: string): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/images/${id}/${encodeURIComponent(emailid)}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error || "Failed to delete image");
+  }
+
+  const data = await res.json();
+  return data.message;
+}
 export async function updateDesign(id: number, data: object) {
   return fetch(`${API_BASE_URL}/designs/${id}`, {
     method: "PUT",

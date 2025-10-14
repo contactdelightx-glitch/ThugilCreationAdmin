@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import ImagesSection from "./ImagesSection";
 import DesignForm, { DesignFormData } from "./DesignForm";
+import AddImagePopup from "./AddImagePopup";
 import { createDesign } from "../../Api";
 import { Toast } from "flowbite-react";
-import { HiExclamation } from "react-icons/hi";
+import { HiExclamation, HiPlus } from "react-icons/hi";
 
 const NewDesign = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [imagesSectionKey, setImagesSectionKey] = useState(0);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -31,13 +34,26 @@ const NewDesign = () => {
       if (response.ok) {
         const result = await response.json();
         setSuccessMessage(result.message || "Design created successfully");
-        setFormResetKey(prev => prev + 1);
+        setFormResetKey((prev) => prev + 1);
       } else {
         console.error("API error:", await response.text());
       }
     } catch (error) {
       console.error("Network error:", error);
     }
+  };
+
+  const handleAddNewImage = () => {
+    setIsPopupOpen(true);
+  };
+
+  const handleImagesAdded = (images: File[]) => {
+    setSuccessMessage(`Successfully uploaded ${images.length} image(s)`);
+    setImagesSectionKey((prev) => prev + 1); // Refresh ImagesSection
+  };
+
+  const handleImageDeleted = () => {
+    setImagesSectionKey((prev) => prev + 1); // Refresh ImagesSection after deletion
   };
 
   return (
@@ -68,6 +84,13 @@ const NewDesign = () => {
         </div>
       )}
 
+      {/* Add Image Popup */}
+      <AddImagePopup
+        isOpen={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        onImagesAdded={handleImagesAdded}
+      />
+
       <div className="bg-white px-4 py-2">
         <div className="flex items-center justify-between">
           <div>
@@ -81,6 +104,14 @@ const NewDesign = () => {
               Create and manage your design assets
             </p>
           </div>
+          <button
+            onClick={handleAddNewImage}
+            className="flex items-center gap-2 rounded-none border border-[var(--color-primary)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white"
+            style={{ borderRadius: "0px" }}
+          >
+            <HiPlus className="h-4 w-4" />
+            Add New Image
+          </button>
         </div>
       </div>
 
@@ -89,17 +120,14 @@ const NewDesign = () => {
           className="grid h-full grid-cols-1 gap-6 p-4 lg:grid-cols-2"
           style={{ borderColor: "var(--color-primary-dark)" }}
         >
-          <div className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-col overflow-hidden rounded-none border border-gray-200 bg-white">
             <div className="flex-1 overflow-y-auto p-4">
-              <DesignForm
-                key={formResetKey}
-                onSubmit={handleFormSubmit}
-              />
+              <DesignForm key={formResetKey} onSubmit={handleFormSubmit} />
             </div>
           </div>
-          <div className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-col overflow-hidden rounded-none border border-gray-200 bg-white">
             <div className="flex-1 overflow-hidden">
-              <ImagesSection />
+              <ImagesSection key={imagesSectionKey} onImageDeleted={handleImageDeleted} />
             </div>
           </div>
         </div>
