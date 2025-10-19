@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Edit2, Trash2, Eye } from "lucide-react";
+import { Edit2, Trash2, Eye } from "lucide-react";
 import { Toast } from "flowbite-react";
 import { getTodaysDesigns, deleteDesign } from "../../Api";
 import DesignUpdateModal from "./DesignUpdateModal";
@@ -425,10 +425,6 @@ export default function RecentAdded() {
             <p className="mt-1 text-xs text-gray-600 sm:text-sm">
               Get started by creating your first design.
             </p>
-            <button className="mt-3 inline-flex items-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:mt-4 sm:px-4 sm:text-sm">
-              <Plus className={iconClass} />
-              Create Design
-            </button>
           </div>
         )}
         {isModalOpen && selectedDesign && (

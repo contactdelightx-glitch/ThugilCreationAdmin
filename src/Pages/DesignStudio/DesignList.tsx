@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Edit2,
-  Trash2,
-  Eye,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit2, Trash2, Eye } from "lucide-react";
 import { Toast } from "flowbite-react";
 import { getDesignsWithFilters, deleteDesign } from "../../Api";
 import DesignUpdateModal from "./DesignUpdateModal";
@@ -78,6 +71,40 @@ export default function DesignList() {
   const [currentImageIndices, setCurrentImageIndices] = useState<{
     [key: number]: number;
   }>({});
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userType, setUserType] = useState<string>("tenant");
+
+  // Get user email and type from localStorage on component mount
+  useEffect(() => {
+    const emailsFromStorage = localStorage.getItem("emails");
+    const userTypeFromStorage = localStorage.getItem("userType");
+
+    if (emailsFromStorage) {
+      try {
+        const emails = JSON.parse(emailsFromStorage);
+        if (Array.isArray(emails) && emails.length > 0) {
+          setUserEmail(emails[0]); // Get the first email from the array
+        }
+      } catch (error) {
+        console.error("Error parsing emails from localStorage:", error);
+      }
+    }
+
+    if (userTypeFromStorage) {
+      setUserType(userTypeFromStorage);
+    }
+  }, []);
+
+  const getImageUrls = (design: Design): string[] => {
+    if (!design.original_image_url) {
+      return design.image_url ? [design.image_url] : [];
+    }
+
+    const urls = design.original_image_url
+      .split(" ")
+      .filter((url) => url && url.startsWith("https://"));
+    return urls.length > 0 ? urls : design.image_url ? [design.image_url] : [];
+  };
 
   const fetchDesigns = useCallback(
     async (page: number, limit: number = itemsPerPage) => {
@@ -85,6 +112,11 @@ export default function DesignList() {
       setError(null);
       try {
         const filterParams: Record<string, string> = {};
+
+        // Only add user email filter if user is NOT superadmin
+        if (userEmail && userType !== "superadmin") {
+          filterParams.email = userEmail;
+        }
 
         if (filters.searchQuery) {
           filterParams.name = filters.searchQuery;
@@ -105,10 +137,9 @@ export default function DesignList() {
         const data: PaginationResponse = await response.json();
         const newTotalPages = Math.ceil((data.total || 0) / limit);
 
-        // Adjust currentPage if it exceeds the new total pages
         if (page > newTotalPages && newTotalPages > 0) {
           setCurrentPage(newTotalPages);
-          return; // Exit to trigger useEffect with the adjusted page
+          return;
         }
 
         setDesigns(data.designs || []);
@@ -116,7 +147,6 @@ export default function DesignList() {
         setCurrentPage(data.page || page);
         setTotalPages(newTotalPages);
 
-        // Initialize image indices for carousel
         const initialIndices = (data.designs || []).reduce(
           (acc, design) => ({
             ...acc,
@@ -136,10 +166,9 @@ export default function DesignList() {
         setLoading(false);
       }
     },
-    [itemsPerPage, filters],
+    [itemsPerPage, filters, userEmail, userType], // Added userType to dependencies
   );
 
-  // Carousel effect for cycling images
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndices((prevIndices) => {
@@ -153,7 +182,7 @@ export default function DesignList() {
         });
         return newIndices;
       });
-    }, 3000); // Change image every 3 seconds
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [designs]);
@@ -238,14 +267,6 @@ export default function DesignList() {
     return pages;
   };
 
-  // Helper function to parse multiple image URLs
-  const getImageUrls = (design: Design): string[] => {
-    const urls = design.original_image_url
-      .split(" ")
-      .filter((url) => url && url.startsWith("https://"));
-    return urls.length > 0 ? urls : [design.image_url];
-  };
-
   const handleViewDesign = (design: Design) => {
     setSelectedDesign(design);
     setModalMode("view");
@@ -282,8 +303,7 @@ export default function DesignList() {
       fetchDesigns(currentPage, itemsPerPage);
       setIsDeleteModalOpen(false);
       setDesignToDelete(null);
-    } catch (error) {
-      console.error("Failed to delete design:", error);
+    } catch {
       setSuccessMessage("Failed to delete design. Please try again.");
     } finally {
       setDeleting(false);
@@ -303,7 +323,6 @@ export default function DesignList() {
 
   const handleFilterChange = (newFilters: Partial<FilterState>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
-    // Do not reset currentPage here to maintain the current page
   };
 
   const clearFilters = () => {
@@ -313,7 +332,7 @@ export default function DesignList() {
       selectedJacquard: "",
       selectedLabel: "",
     });
-    setCurrentPage(1); // Reset to page 1 only when clearing all filters
+    setCurrentPage(1);
   };
 
   const hasActiveFilters = Object.values(filters).some((value) => value !== "");
@@ -376,6 +395,15 @@ export default function DesignList() {
             <p className="mt-1 text-xs text-gray-600 sm:text-sm">
               Manage and organize all your design projects
             </p>
+            {userType === "superadmin" ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Viewing all designs (Superadmin Access)
+              </p>
+            ) : userEmail ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Showing designs for: {userEmail}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -570,10 +598,6 @@ export default function DesignList() {
                 ? "Try adjusting your search or filter criteria."
                 : "Get started by creating your first design."}
             </p>
-            <button className="mt-3 inline-flex items-center gap-2 bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] sm:mt-4 sm:px-4 sm:text-sm">
-              <Plus className={iconClass} />
-              Create Design
-            </button>
           </div>
         )}
         {designs.length > 0 && (
