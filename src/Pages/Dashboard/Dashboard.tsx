@@ -133,17 +133,49 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // Calculate total monthly revenue from monthlyBreakdown
+  // Calculate accurate metrics from the actual data
   const totalMonthlyRevenue = data.monthlyBreakdown.reduce(
     (total, month) => total + month.totalRevenue,
     0,
   );
 
+  // Calculate total sales from sold designs (more accurate than the provided sales numbers)
+  const totalSalesFromDesigns = data.soldDesigns.reduce(
+    (total, design) => total + design.timesSold,
+    0,
+  );
+
+  // Use the more accurate sales number
+  const accurateMonthlySales =
+    totalSalesFromDesigns > 0 ? totalSalesFromDesigns : data.monthlySales;
+
   // Prepare chart data from backend data
   const salesDistributionData = [
-    { name: "Today", sales: data.todaySales },
-    { name: "This Week", sales: data.weeklySales },
-    { name: "This Month", sales: data.monthlySales },
+    {
+      name: "Today",
+      sales: data.todaySales,
+      revenue: data.soldDesigns
+        .filter((design) => design.timesSold > 0)
+        .reduce(
+          (total, design) => total + design.final_price * design.timesSold,
+          0,
+        ),
+    },
+    {
+      name: "This Week",
+      sales: data.weeklySales,
+      revenue: data.soldDesigns
+        .filter((design) => design.timesSold > 0)
+        .reduce(
+          (total, design) => total + design.final_price * design.timesSold,
+          0,
+        ),
+    },
+    {
+      name: "This Month",
+      sales: accurateMonthlySales,
+      revenue: totalMonthlyRevenue,
+    },
   ];
 
   const monthlySalesData = data.monthlyBreakdown.map((item) => ({
@@ -152,14 +184,21 @@ const Dashboard = () => {
     revenue: item.totalRevenue,
   }));
 
-  // Top Selling Designs Data
-  const topSellingDesignsData = data.topSoldDesigns.map((design) => ({
-    name: design.name,
+  // Top Selling Designs Data - enhanced with better calculations
+
+  // All Sold Designs for comprehensive view
+  const allSoldDesignsData = data.soldDesigns.map((design) => ({
+    name:
+      design.name.length > 10
+        ? `${design.name.substring(0, 10)}...`
+        : design.name,
+    fullName: design.name,
     sales: design.timesSold,
     revenue: design.final_price * design.timesSold,
+    price: design.final_price,
   }));
 
-  // Sankey Chart Data for Price Analysis
+  // Sankey Chart Data for Price Analysis - updated with accurate values
   const sankeyData = {
     nodes: [
       { name: "Total Designs" },
@@ -172,7 +211,7 @@ const Dashboard = () => {
     links: [
       { source: 0, target: 1, value: data.totalDesigns - data.freeImagesCount },
       { source: 0, target: 2, value: data.freeImagesCount },
-      { source: 1, target: 3, value: data.monthlySales },
+      { source: 1, target: 3, value: accurateMonthlySales },
       { source: 3, target: 4, value: totalMonthlyRevenue },
       { source: 1, target: 5, value: data.avgPrice },
     ],
@@ -186,7 +225,7 @@ const Dashboard = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
 
-    useEffect(() => { 
+    useEffect(() => {
       const updateSize = () => {
         if (containerRef.current) {
           setContainerWidth(containerRef.current.offsetWidth);
@@ -329,10 +368,12 @@ const Dashboard = () => {
       : 0;
 
   const paidDesignsCount = data.totalDesigns - data.freeImagesCount;
-  const assetCoverageRatio =
+
+  // Calculate conversion rate
+  const conversionRate =
     data.totalDesigns > 0
-      ? `${data.uploadedImagesCount}:${data.totalDesigns}`
-      : "0:0";
+      ? Math.round((accurateMonthlySales / data.totalDesigns) * 100)
+      : 0;
 
   if (loading) {
     return (
@@ -419,9 +460,20 @@ const Dashboard = () => {
         <p className="mt-1 text-xs sm:text-sm" style={{ color: "#8c1007" }}>
           Comprehensive overview of your design assets and performance metrics
         </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="bg-[#fff0c4] px-2 py-1 text-xs text-[#8c1007]">
+            Total Designs: {data.totalDesigns}
+          </span>
+          <span className="bg-[#fff0c4] px-2 py-1 text-xs text-[#8c1007]">
+            Monthly Revenue: ₹{totalMonthlyRevenue.toLocaleString()}
+          </span>
+          <span className="bg-[#fff0c4] px-2 py-1 text-xs text-[#8c1007]">
+            Total Sales: {accurateMonthlySales}
+          </span>
+        </div>
       </div>
 
-      {/* Main Stats Grid - Updated with Monthly Revenue */}
+      {/* Main Stats Grid - Updated with accurate data */}
       <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-5">
         {/* Total Designs */}
         <Card
@@ -575,13 +627,16 @@ const Dashboard = () => {
                 className="text-xs font-medium tracking-wide uppercase sm:text-sm"
                 style={{ color: "#8c1007" }}
               >
-                Monthly Sales
+                Total Sales
               </p>
               <p
                 className="truncate text-lg font-bold sm:text-xl"
                 style={{ color: "#3e0703" }}
               >
-                {data.monthlySales}
+                {accurateMonthlySales}
+              </p>
+              <p className="text-xs text-[#8c1007]">
+                {data.soldDesigns.length} unique designs
               </p>
             </div>
           </div>
@@ -616,13 +671,16 @@ const Dashboard = () => {
                 className="text-xs font-medium tracking-wide uppercase sm:text-sm"
                 style={{ color: "#8c1007" }}
               >
-                Images
+                Images Uploaded
               </p>
               <p
                 className="truncate text-lg font-bold sm:text-xl"
                 style={{ color: "#3e0703" }}
               >
                 {data.uploadedImagesCount}
+              </p>
+              <p className="text-xs text-[#8c1007]">
+                {designUtilizationRate}% utilization
               </p>
             </div>
           </div>
@@ -641,7 +699,7 @@ const Dashboard = () => {
               className="mb-3 text-base font-semibold sm:text-lg"
               style={{ color: "#3e0703" }}
             >
-              Sales Distribution
+              Sales Distribution & Revenue
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={salesDistributionData}>
@@ -661,9 +719,14 @@ const Dashboard = () => {
                     border: "2px solid #8c1007",
                     borderRadius: "0px",
                   }}
+                  formatter={(value, name) => [
+                    name === "revenue" ? `₹${value}` : value,
+                    name === "revenue" ? "Revenue" : "Sales",
+                  ]}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
-                <Bar dataKey="sales" fill="#8c1007" name="Sales" />
+                <Bar dataKey="sales" fill="#8c1007" name="Sales (Units)" />
+                <Bar dataKey="revenue" fill="#3e0703" name="Revenue (₹)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -699,7 +762,10 @@ const Dashboard = () => {
                     border: "2px solid #8c1007",
                     borderRadius: "0px",
                   }}
-                  formatter={(value) => [`₹${value}`, "Revenue"]}
+                  formatter={(value, name) => [
+                    name === "revenue" ? `₹${value}` : value,
+                    name === "revenue" ? "Revenue" : "Sales",
+                  ]}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
                 <Area
@@ -709,6 +775,14 @@ const Dashboard = () => {
                   fill="#8c1007"
                   fillOpacity={0.3}
                   name="Revenue (₹)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="sales"
+                  stroke="#3e0703"
+                  fill="#3e0703"
+                  fillOpacity={0.3}
+                  name="Sales (Units)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -737,7 +811,7 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        {/* Top Selling Designs */}
+        {/* All Sold Designs */}
         <Card
           className="!bg-white shadow-sm"
           style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -747,10 +821,10 @@ const Dashboard = () => {
               className="mb-3 text-base font-semibold sm:text-lg"
               style={{ color: "#3e0703" }}
             >
-              Top Selling Designs
+              All Sold Designs Performance
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={topSellingDesignsData}>
+              <BarChart data={allSoldDesignsData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="#8c1007"
@@ -771,8 +845,16 @@ const Dashboard = () => {
                     borderRadius: "0px",
                   }}
                   formatter={(value, name) => [
-                    name === "revenue" ? `₹${value}` : value,
-                    name === "revenue" ? "Revenue" : "Sales",
+                    name === "revenue"
+                      ? `₹${value}`
+                      : name === "price"
+                        ? `₹${value}`
+                        : value,
+                    name === "revenue"
+                      ? "Revenue"
+                      : name === "price"
+                        ? "Price"
+                        : "Times Sold",
                   ]}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px", color: "#3e0703" }} />
@@ -830,17 +912,17 @@ const Dashboard = () => {
                     className="truncate text-sm font-medium"
                     style={{ color: "#3e0703" }}
                   >
-                    Free Image Allocation
+                    Sales Conversion Rate
                   </p>
                   <p className="truncate text-xs" style={{ color: "#8c1007" }}>
-                    Available free images
+                    Designs sold vs total portfolio
                   </p>
                 </div>
                 <span
                   className="ml-2 text-sm font-bold sm:text-base"
                   style={{ color: "#3e0703" }}
                 >
-                  {data.freeImagesCount}
+                  {conversionRate}%
                 </span>
               </div>
               <div
@@ -973,23 +1055,106 @@ const Dashboard = () => {
                     className="truncate text-sm font-medium"
                     style={{ color: "#3e0703" }}
                   >
-                    Asset Coverage Ratio
+                    Revenue per Sale
                   </p>
                   <p className="truncate text-xs" style={{ color: "#8c1007" }}>
-                    Images per design
+                    Average revenue per transaction
                   </p>
                 </div>
                 <span
                   className="ml-2 text-sm font-bold sm:text-base"
                   style={{ color: "#8c1007" }}
                 >
-                  {assetCoverageRatio}
+                  ₹
+                  {accurateMonthlySales > 0
+                    ? Math.round(totalMonthlyRevenue / accurateMonthlySales)
+                    : 0}
                 </span>
               </div>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* Sold Designs Details Table */}
+      <Card
+        className="!bg-white shadow-sm"
+        style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
+      >
+        <div className="p-2 sm:p-3">
+          <h3
+            className="mb-3 text-base font-semibold sm:text-lg"
+            style={{ color: "#3e0703" }}
+          >
+            Sold Designs Details
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ backgroundColor: "#fff0c4" }}>
+                  <th className="border border-[#8c1007] p-2 text-left text-[#3e0703]">
+                    Design Name
+                  </th>
+                  <th className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    Price (₹)
+                  </th>
+                  <th className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    Times Sold
+                  </th>
+                  <th className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    Total Revenue (₹)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.soldDesigns.map((design, index) => (
+                  <tr
+                    key={design.id}
+                    className={index % 2 === 0 ? "bg-white" : "bg-[#fffaf0]"}
+                  >
+                    <td className="border border-[#8c1007] p-2 text-[#3e0703]">
+                      {design.name}
+                    </td>
+                    <td className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                      {design.final_price}
+                    </td>
+                    <td className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                      {design.timesSold}
+                    </td>
+                    <td className="border border-[#8c1007] p-2 text-right font-medium text-[#3e0703]">
+                      {design.final_price * design.timesSold}
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{ backgroundColor: "#fff0c4", fontWeight: "bold" }}>
+                  <td className="border border-[#8c1007] p-2 text-[#3e0703]">
+                    TOTAL
+                  </td>
+                  <td className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    {data.soldDesigns.reduce(
+                      (sum, design) => sum + design.final_price,
+                      0,
+                    )}
+                  </td>
+                  <td className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    {data.soldDesigns.reduce(
+                      (sum, design) => sum + design.timesSold,
+                      0,
+                    )}
+                  </td>
+                  <td className="border border-[#8c1007] p-2 text-right text-[#3e0703]">
+                    {data.soldDesigns.reduce(
+                      (sum, design) =>
+                        sum + design.final_price * design.timesSold,
+                      0,
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };

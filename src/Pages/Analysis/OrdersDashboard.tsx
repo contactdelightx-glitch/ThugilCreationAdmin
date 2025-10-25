@@ -14,6 +14,17 @@ import {
 } from "lucide-react";
 import { getFullReport } from "../../Api";
 
+interface PurchaseItem {
+  id?: string; // Make optional since it's missing in response
+  name: string;
+  final_price: number;
+  image_url: string | null;
+  created_at: string;
+  quantity: number;
+  customer_id?: number; // Make optional
+  mobile_number?: string; // Add this field from response
+}
+
 interface OrderData {
   dashboard: {
     totalDesigns: number;
@@ -27,15 +38,7 @@ interface OrderData {
     highestPurchase: number;
     lowestPurchase: number;
     purchasesByDate: {
-      [date: string]: Array<{
-        id: string;
-        name: string;
-        final_price: number;
-        image_url: string;
-        created_at: string;
-        quantity: number;
-        customer_id: number;
-      }>;
+      [date: string]: PurchaseItem[];
     };
   };
 }
@@ -72,7 +75,7 @@ const SkeletonCard = () => (
 const OrdersDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
-  const [selectedCustomerEmail, setSelectedCustomerEmail] = useState(""); // Changed from selectedUserEmail
+  const [selectedCustomerEmail, setSelectedCustomerEmail] = useState("");
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -80,7 +83,7 @@ const OrdersDashboard = () => {
 
   const fetchCustomerEmails = useCallback(async () => {
     try {
-      const response = await getFullReport(); // No parameters needed to fetch customer emails
+      const response = await getFullReport();
       if (response.ok) {
         const result: FullReportResponse = await response.json();
         setCustomerEmails(result.customerEmails || []);
@@ -99,9 +102,15 @@ const OrdersDashboard = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await getFullReport(email); // Use customer_email parameter
+      const response = await getFullReport(email);
       if (response.ok) {
         const result: OrderData = await response.json();
+
+        // Validate and ensure purchasesByDate exists
+        if (!result.userPurchaseStats?.purchasesByDate) {
+          result.userPurchaseStats.purchasesByDate = {};
+        }
+
         setOrderData(result);
         const dates = Object.keys(result.userPurchaseStats.purchasesByDate);
         setAvailableDates(dates);
@@ -122,13 +131,13 @@ const OrdersDashboard = () => {
 
   useEffect(() => {
     if (selectedCustomerEmail) {
-      fetchOrderData(selectedCustomerEmail); // Changed from selectedUserEmail
+      fetchOrderData(selectedCustomerEmail);
     } else {
       setOrderData(null);
       setAvailableDates([]);
       setLoading(false);
     }
-  }, [selectedCustomerEmail, fetchOrderData]); // Changed from selectedUserEmail
+  }, [selectedCustomerEmail, fetchOrderData]);
 
   const MetricCard = ({
     title,
@@ -223,7 +232,15 @@ const OrdersDashboard = () => {
     target.src = "https://via.placeholder.com/80x80?text=No+Image";
   };
 
-  const downloadImage = async (imageUrl: string, productName: string) => {
+  const downloadImage = async (
+    imageUrl: string | null,
+    productName: string,
+  ) => {
+    if (!imageUrl) {
+      setError("No image available to download");
+      return;
+    }
+
     try {
       const response = await fetch(imageUrl);
       const blob = await response.blob();
@@ -242,16 +259,16 @@ const OrdersDashboard = () => {
   };
 
   const exportToCSV = () => {
-    if (!orderData) return;
+    if (!orderData?.userPurchaseStats?.purchasesByDate) return;
 
     const headers = [
       "Date",
-      "Product ID",
       "Product Name",
       "Price",
       "Quantity",
       "Total",
-      "Customer ID",
+      "Mobile Number",
+      "Created At",
     ];
     const csvData = [];
 
@@ -262,12 +279,12 @@ const OrdersDashboard = () => {
         products.forEach((product) => {
           const row = [
             date,
-            product.id,
             `"${product.name}"`,
             product.final_price,
             product.quantity,
             product.final_price * product.quantity,
-            product.customer_id,
+            product.mobile_number || "N/A",
+            product.created_at,
           ];
           csvData.push(row.join(","));
         });
@@ -279,19 +296,19 @@ const OrdersDashboard = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `orders-${selectedCustomerEmail}-${new Date().toISOString().split("T")[0]}.csv`; // Changed from selectedUserEmail
+    a.download = `orders-${selectedCustomerEmail}-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
 
   const getFilteredPurchases = () => {
-    if (!orderData) return {};
+    if (!orderData?.userPurchaseStats?.purchasesByDate) return {};
 
     if (!selectedDate) {
       return orderData.userPurchaseStats.purchasesByDate;
     }
 
-    const filtered: { [key: string]: any[] } = {};
+    const filtered: { [key: string]: PurchaseItem[] } = {};
     filtered[selectedDate] =
       orderData.userPurchaseStats.purchasesByDate[selectedDate] || [];
     return filtered;
@@ -430,8 +447,8 @@ const OrdersDashboard = () => {
                     Select Customer Email
                   </label>
                   <Select
-                    value={selectedCustomerEmail} // Changed from selectedUserEmail
-                    onChange={(e) => setSelectedCustomerEmail(e.target.value)} // Changed from setSelectedUserEmail
+                    value={selectedCustomerEmail}
+                    onChange={(e) => setSelectedCustomerEmail(e.target.value)}
                     className="w-full font-sans"
                     sizing="md"
                     style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -690,9 +707,9 @@ const OrdersDashboard = () => {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 bg-white">
-                              {products.map((product) => (
+                              {products.map((product, index) => (
                                 <tr
-                                  key={product.id}
+                                  key={product.id || `${date}-${index}`}
                                   className="transition-colors hover:bg-gray-50"
                                 >
                                   <td className="px-2 py-2 whitespace-nowrap">
@@ -701,12 +718,18 @@ const OrdersDashboard = () => {
                                         className="h-12 w-12 flex-shrink-0 overflow-hidden border bg-gray-100"
                                         style={{ borderColor: "#8c1007" }}
                                       >
-                                        <img
-                                          src={product.image_url}
-                                          alt={product.name}
-                                          className="h-full w-full object-cover"
-                                          onError={handleImageError}
-                                        />
+                                        {product.image_url ? (
+                                          <img
+                                            src={product.image_url}
+                                            alt={product.name}
+                                            className="h-full w-full object-cover"
+                                            onError={handleImageError}
+                                          />
+                                        ) : (
+                                          <div className="flex h-full w-full items-center justify-center bg-gray-200">
+                                            <ImageIcon className="h-6 w-6 text-gray-400" />
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </td>
@@ -718,11 +741,12 @@ const OrdersDashboard = () => {
                                       >
                                         {truncateText(product.name, 30)}
                                       </div>
-                                      <div className="truncate font-mono text-xs text-gray-500">
-                                        ID: {truncateText(product.id, 15)}
+                                      <div className="font-mono text-xs text-gray-500">
+                                        Mobile: {product.mobile_number || "N/A"}
                                       </div>
                                       <div className="text-xs text-gray-500">
-                                        Customer: {product.customer_id}
+                                        Created:{" "}
+                                        {formatDate(product.created_at)}
                                       </div>
                                     </div>
                                   </td>
@@ -765,15 +789,15 @@ const OrdersDashboard = () => {
                                             product.name,
                                           )
                                         }
+                                        disabled={!product.image_url}
                                       >
                                         <ImageIcon className="h-3 w-3" />
                                         <span className="text-xs">
-                                          Download
+                                          {product.image_url
+                                            ? "Download"
+                                            : "No Image"}
                                         </span>
                                       </Button>
-                                      <div className="text-xs text-gray-500">
-                                        {formatDate(product.created_at)}
-                                      </div>
                                     </div>
                                   </td>
                                 </tr>
