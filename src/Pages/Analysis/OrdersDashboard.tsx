@@ -13,7 +13,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { getFullReport } from "../../Api";
-
+import s3Service from "../../services/s3Service";
 interface OrderData {
   dashboard: {
     totalDesigns: number;
@@ -72,15 +72,16 @@ const SkeletonCard = () => (
 const OrdersDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
-  const [selectedCustomerEmail, setSelectedCustomerEmail] = useState(""); // Changed from selectedUserEmail
+  const [selectedCustomerEmail, setSelectedCustomerEmail] = useState("");
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null); // Add downloading state
 
   const fetchCustomerEmails = useCallback(async () => {
     try {
-      const response = await getFullReport(); // No parameters needed to fetch customer emails
+      const response = await getFullReport();
       if (response.ok) {
         const result: FullReportResponse = await response.json();
         setCustomerEmails(result.customerEmails || []);
@@ -99,7 +100,7 @@ const OrdersDashboard = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await getFullReport(email); // Use customer_email parameter
+      const response = await getFullReport(email);
       if (response.ok) {
         const result: OrderData = await response.json();
         setOrderData(result);
@@ -122,13 +123,13 @@ const OrdersDashboard = () => {
 
   useEffect(() => {
     if (selectedCustomerEmail) {
-      fetchOrderData(selectedCustomerEmail); // Changed from selectedUserEmail
+      fetchOrderData(selectedCustomerEmail);
     } else {
       setOrderData(null);
       setAvailableDates([]);
       setLoading(false);
     }
-  }, [selectedCustomerEmail, fetchOrderData]); // Changed from selectedUserEmail
+  }, [selectedCustomerEmail, fetchOrderData]);
 
   const MetricCard = ({
     title,
@@ -223,21 +224,37 @@ const OrdersDashboard = () => {
     target.src = "https://via.placeholder.com/80x80?text=No+Image";
   };
 
-  const downloadImage = async (imageUrl: string, productName: string) => {
+  // UPDATED: Download image using S3 service - Alternative approach
+  const downloadImage = async (
+    imageUrl: string,
+    productName: string,
+    productId: string,
+  ) => {
+    setDownloading(productId);
     try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${productName.replace(/[^a-zA-Z0-9]/g, "_")}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Extract S3 key from the image URL
+      const s3Key = s3Service.extractS3Key(imageUrl);
+
+      if (!s3Key) {
+        throw new Error("Invalid image URL");
+      }
+
+      // Get filename from product name with proper extension
+      const filename = `${productName.replace(/[^a-zA-Z0-9]/g, "_")}.jpg`;
+
+      // Method 1: Try the blob approach first
+      try {
+        await s3Service.downloadFile(s3Key, filename);
+      } catch (blobError) {
+        console.log("Blob method failed, trying direct method:", blobError);
+        // Fallback to direct method
+        await s3Service.downloadFileDirect(s3Key, filename);
+      }
     } catch (error) {
       console.error("Error downloading image:", error);
       setError("Failed to download image");
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -279,7 +296,7 @@ const OrdersDashboard = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `orders-${selectedCustomerEmail}-${new Date().toISOString().split("T")[0]}.csv`; // Changed from selectedUserEmail
+    a.download = `orders-${selectedCustomerEmail}-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -430,8 +447,8 @@ const OrdersDashboard = () => {
                     Select Customer Email
                   </label>
                   <Select
-                    value={selectedCustomerEmail} // Changed from selectedUserEmail
-                    onChange={(e) => setSelectedCustomerEmail(e.target.value)} // Changed from setSelectedUserEmail
+                    value={selectedCustomerEmail}
+                    onChange={(e) => setSelectedCustomerEmail(e.target.value)}
                     className="w-full font-sans"
                     sizing="md"
                     style={{ borderRadius: "0px", border: "2px solid #8c1007" }}
@@ -763,12 +780,20 @@ const OrdersDashboard = () => {
                                           downloadImage(
                                             product.image_url,
                                             product.name,
+                                            product.id,
                                           )
                                         }
+                                        disabled={downloading === product.id}
                                       >
-                                        <ImageIcon className="h-3 w-3" />
+                                        {downloading === product.id ? (
+                                          <Spinner size="sm" />
+                                        ) : (
+                                          <ImageIcon className="h-3 w-3" />
+                                        )}
                                         <span className="text-xs">
-                                          Download
+                                          {downloading === product.id
+                                            ? "Downloading..."
+                                            : "Download"}
                                         </span>
                                       </Button>
                                       <div className="text-xs text-gray-500">
