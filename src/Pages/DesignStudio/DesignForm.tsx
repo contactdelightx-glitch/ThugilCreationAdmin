@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Label, TextInput, Select, Button, Alert } from "flowbite-react";
 import {
@@ -94,7 +95,6 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize emailDropdown with single email if only one exists
   useEffect(() => {
     const emails = JSON.parse(localStorage.getItem("emails") || "[]");
     if (emails.length === 1 && fieldConfig[designType].includes("emailDropdown")) {
@@ -166,11 +166,54 @@ const DesignForm = ({ onSubmit }: DesignFormProps) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const mapFormDataToBackend = (formData: DesignFormData, designType: DesignType) => {
+    const mappedData: any = {
+      saree_style: designType,
+      email: formData.emailDropdown,
+    };
+
+    const fieldMappings: Record<string, string> = {
+      designImageUrl: "image_url",
+      designName: "name",
+      imageType: "image_type",
+      hooks: "hooks",
+      cards: "cards",
+      ppi: "ppi",
+      epi: "epi",
+      harnessbuild: "harnessbuild",
+      listingRate: "listing_rate",
+      finalPrice: "final_price",
+      label: "label",
+      originalImageUrl: "original_image_url",
+      brHooks: "br_hooks",
+      byHooks: "by_hooks",
+      epiBody: "body_epi",
+      epiBorder: "border_epi",
+      jacquard: "jacquard_type",
+      redirectUrl: "redirect_url",
+    };
+
+    Object.keys(formData).forEach(frontendField => {
+      const backendField = fieldMappings[frontendField];
+      if (backendField && formData[frontendField] !== undefined && formData[frontendField] !== "") {
+        // For cards field, send as string instead of array
+        if (backendField === "cards") {
+          mappedData[backendField] = formData[frontendField];
+        } else {
+          mappedData[backendField] = formData[frontendField];
+        }
+      }
+    });
+
+    return mappedData;
+  };
+
   const handleSubmit = async () => {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      await onSubmit({ designType, email: formData.emailDropdown, ...formData });
+      const backendData = mapFormDataToBackend(formData, designType);
+      await onSubmit(backendData);
       setFormData({});
       setDesignType("Butta");
     } finally {
