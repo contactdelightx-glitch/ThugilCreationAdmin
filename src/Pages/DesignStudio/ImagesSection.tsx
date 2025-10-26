@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, Check } from "lucide-react";
 import { getImagesByEmail, deleteImageByIdAndEmail } from "../../Api";
 
 export interface StoreImage {
@@ -26,6 +26,57 @@ interface ImagesSectionProps {
   onImageDeleted?: () => void;
 }
 
+// Confirmation Modal Component
+interface DeleteConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  selectedCount: number;
+  deleting: boolean;
+}
+
+const DeleteConfirmationModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  selectedCount,
+  deleting
+}: DeleteConfirmationModalProps) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm">
+      <div className="bg-white p-6 shadow-lg" style={{ borderRadius: "0", maxWidth: "400px", width: "90%" }}>
+        <h3 className="text-lg font-bold mb-4" style={{ color: "var(--color-primary-dark)" }}>
+          Delete {selectedCount} Asset{selectedCount > 1 ? 's' : ''}
+        </h3>
+        <p className="text-sm text-gray-600 mb-6">
+          Are you sure you want to delete {selectedCount} selected asset{selectedCount > 1 ? 's' : ''}? 
+          This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ borderRadius: "0" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ borderRadius: "0" }}
+          >
+            {deleting ? "Deleting..." : `Delete ${selectedCount} Asset${selectedCount > 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SkeletonCard = () => (
   <div
     className="overflow-hidden bg-white shadow-sm"
@@ -51,6 +102,8 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
   const [loading, setLoading] = useState(false);
   const [copiedImageId, setCopiedImageId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Get email from token in localStorage
   const getEmailFromToken = (): string | null => {
@@ -91,11 +144,13 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
       setImages(storeImages);
       setTotalItems(data.total || 0);
       setTotalPages(Math.ceil((data.total || 0) / itemsPerPage) || 1);
+      setSelectedImages(new Set()); // Clear selection when images are refreshed
     } catch (err) {
       console.error(err);
       setImages([]);
       setTotalItems(0);
       setTotalPages(1);
+      setSelectedImages(new Set());
     } finally {
       setLoading(false);
     }
@@ -108,6 +163,7 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
   const onPageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
+      setSelectedImages(new Set()); // Clear selection when page changes
     }
   };
 
@@ -137,32 +193,81 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
     }
   };
 
-  const handleDeleteImage = async (image: StoreImage) => {
-    if (
-      confirm(
-        `Are you sure you want to delete the image "${image.name || "Unnamed Asset"}"? This action cannot be undone.`,
-      )
-    ) {
-      setDeleting(true);
-      try {
-        const email = getEmailFromToken();
-        if (!email) {
-          throw new Error("User email not found. Please login again.");
-        }
-
-        await deleteImageByIdAndEmail(parseInt(image.id), email);
-        await fetchImages();
-        if (onImageDeleted) {
-          onImageDeleted(); // Notify parent component to refresh
-        }
-      } catch (error) {
-        console.error("Delete error:", error);
-        alert(
-          error instanceof Error ? error.message : "Failed to delete image",
-        );
-      } finally {
-        setDeleting(false);
+  // Toggle image selection
+  const toggleImageSelection = (imageId: string) => {
+    setSelectedImages(prev => {
+      const newSelection = new Set(prev);
+      if (newSelection.has(imageId)) {
+        newSelection.delete(imageId);
+      } else {
+        newSelection.add(imageId);
       }
+      return newSelection;
+    });
+  };
+
+  // Select all images on current page
+  const selectAllOnPage = () => {
+    const pageImages = getPaginatedImages();
+    const allSelected = pageImages.every(img => selectedImages.has(img.id));
+    
+    if (allSelected) {
+      // Deselect all on current page
+      setSelectedImages(prev => {
+        const newSelection = new Set(prev);
+        pageImages.forEach(img => newSelection.delete(img.id));
+        return newSelection;
+      });
+    } else {
+      // Select all on current page
+      setSelectedImages(prev => {
+        const newSelection = new Set(prev);
+        pageImages.forEach(img => newSelection.add(img.id));
+        return newSelection;
+      });
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedImages.size === 0) return;
+    
+    setDeleting(true);
+    try {
+      const email = getEmailFromToken();
+      if (!email) {
+        throw new Error("User email not found. Please login again.");
+      }
+
+      // Delete each selected image
+      const deletePromises = Array.from(selectedImages).map(imageId => 
+        deleteImageByIdAndEmail(parseInt(imageId), email)
+      );
+
+      await Promise.all(deletePromises);
+      
+      // Refresh images and clear selection
+      await fetchImages();
+      setSelectedImages(new Set());
+      setShowDeleteModal(false);
+      
+      if (onImageDeleted) {
+        onImageDeleted(); // Notify parent component to refresh
+      }
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to delete images",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Open delete confirmation modal
+  const openDeleteModal = () => {
+    if (selectedImages.size > 0) {
+      setShowDeleteModal(true);
     }
   };
 
@@ -174,19 +279,58 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
   };
 
   const paginatedImages = getPaginatedImages();
+  const hasSelectedImages = selectedImages.size > 0;
+  const allOnPageSelected = paginatedImages.length > 0 && paginatedImages.every(img => selectedImages.has(img.id));
 
   return (
     <div
       className="flex h-full flex-col bg-white p-2 sm:p-2"
       style={{ borderRadius: "0" }}
     >
-      {/* Header */}
-      <h2
-        className="mb-2 text-xl font-bold sm:p-0"
-        style={{ color: "var(--color-primary-dark)", borderRadius: "0" }}
-      >
-        Your Digital Assets
-      </h2>
+      {/* Header with Bulk Actions */}
+      <div className="mb-2 flex items-center justify-between">
+        <h2
+          className="text-xl font-bold sm:p-0"
+          style={{ color: "var(--color-primary-dark)", borderRadius: "0" }}
+        >
+          Your Digital Assets
+        </h2>
+        
+        {hasSelectedImages && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              {selectedImages.size} selected
+            </span>
+            <button
+              onClick={openDeleteModal}
+              disabled={deleting}
+              className="flex items-center gap-1 bg-red-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderRadius: "0" }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Selection Controls */}
+      {images.length > 0 && (
+        <div className="mb-3 flex items-center justify-between">
+          <button
+            onClick={selectAllOnPage}
+            className="text-sm font-medium text-gray-700 hover:text-gray-900"
+            style={{ borderRadius: "0" }}
+          >
+            {allOnPageSelected ? "Deselect All" : "Select All"} on Page
+          </button>
+          {hasSelectedImages && (
+            <span className="text-sm text-gray-600">
+              {selectedImages.size} asset{selectedImages.size > 1 ? 's' : ''} selected
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Scrollable Image Grid - Takes remaining space */}
       <div className="flex-1 overflow-y-auto pr-2">
@@ -198,63 +342,85 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
           </div>
         ) : paginatedImages.length > 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {paginatedImages.map((image) => (
-              <div
-                key={image.id}
-                className="group relative cursor-pointer overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-lg"
-                style={{ borderRadius: "0" }}
-              >
-                {/* Delete Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteImage(image);
-                  }}
-                  disabled={deleting}
-                  className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center bg-red-500 text-white opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ borderRadius: "0" }}
-                  title="Delete image"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-
-                {/* Image Content */}
+            {paginatedImages.map((image) => {
+              const isSelected = selectedImages.has(image.id);
+              return (
                 <div
-                  onClick={() => copyImageLink(image.image_url, image.id)}
-                  className="aspect-square w-full overflow-hidden bg-gray-50"
+                  key={image.id}
+                  className={`group relative cursor-pointer overflow-hidden bg-white shadow-sm transition-all duration-300 hover:shadow-lg ${
+                    isSelected ? 'ring-2 ring-[var(--color-primary)]' : ''
+                  }`}
                   style={{ borderRadius: "0" }}
+                  onClick={() => toggleImageSelection(image.id)}
                 >
-                  <div className="group/image relative h-full w-full overflow-hidden">
-                    <img
-                      src={image.image_url}
-                      alt={image.name || "Unnamed Asset"}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-110"
-                      style={{ borderRadius: "0" }}
-                      onError={(e) =>
-                        (e.currentTarget.src =
-                          'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
-                      }
-                    />
+                  {/* Selection Checkbox */}
+                  <div
+                    className={`absolute top-2 left-2 z-10 flex h-5 w-5 items-center justify-center border transition-all ${
+                      isSelected 
+                        ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' 
+                        : 'bg-white border-gray-300 group-hover:border-gray-400'
+                    }`}
+                    style={{ borderRadius: "0" }}
+                  >
+                    {isSelected && <Check className="h-3 w-3 text-white" />}
+                  </div>
+
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImages(new Set([image.id]));
+                      setShowDeleteModal(true);
+                    }}
+                    disabled={deleting}
+                    className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center bg-red-500 text-white opacity-0 transition-all duration-200 group-hover:opacity-100 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ borderRadius: "0" }}
+                    title="Delete image"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+
+                  {/* Image Content */}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyImageLink(image.image_url, image.id);
+                    }}
+                    className="aspect-square w-full overflow-hidden bg-gray-50"
+                    style={{ borderRadius: "0" }}
+                  >
+                    <div className="group/image relative h-full w-full overflow-hidden">
+                      <img
+                        src={image.image_url}
+                        alt={image.name || "Unnamed Asset"}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-110"
+                        style={{ borderRadius: "0" }}
+                        onError={(e) =>
+                          (e.currentTarget.src =
+                            'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"%3E%3Cpath strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/%3E%3C/svg%3E')
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="p-2" style={{ borderRadius: "0" }}>
+                    <h5 className="mb-1 truncate text-xs font-semibold text-gray-900">
+                      {image.name || "Unnamed Asset"}
+                    </h5>
+                    <span
+                      className="text-xs font-medium"
+                      style={{
+                        color:
+                          copiedImageId === image.id
+                            ? "var(--color-primary)"
+                            : "#6b7280",
+                      }}
+                    >
+                      {copiedImageId === image.id ? "Copied!" : "copy"}
+                    </span>
                   </div>
                 </div>
-                <div className="p-2" style={{ borderRadius: "0" }}>
-                  <h5 className="mb-1 truncate text-xs font-semibold text-gray-900">
-                    {image.name || "Unnamed Asset"}
-                  </h5>
-                  <span
-                    className="text-xs font-medium"
-                    style={{
-                      color:
-                        copiedImageId === image.id
-                          ? "var(--color-primary)"
-                          : "#6b7280",
-                    }}
-                  >
-                    {copiedImageId === image.id ? "Copied!" : "copy"}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           !loading && (
@@ -383,6 +549,15 @@ const ImagesSection = ({ onImageDeleted }: ImagesSectionProps) => {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleBulkDelete}
+        selectedCount={selectedImages.size}
+        deleting={deleting}
+      />
     </div>
   );
 };
