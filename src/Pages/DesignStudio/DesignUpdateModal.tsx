@@ -112,7 +112,8 @@ export default function DesignUpdateModal({
   };
 
   const isEditable = (field: string) => {
-    const nonEditableFields = ["name", "email", "image_type", "saree_style", "label", "jacquard_type"];
+    // Updated: Now "name" is editable, removed from non-editable fields
+    const nonEditableFields = ["email", "image_type", "saree_style", "label", "jacquard_type"];
     return currentMode === "edit" && !nonEditableFields.includes(field);
   };
 
@@ -176,7 +177,7 @@ export default function DesignUpdateModal({
             )}
             <div>
               <h2 className="text-sm font-semibold text-white sm:text-base">
-                {design.name ? formatValue(design.name) : "Design Details"}
+                {formData.name ? formatValue(formData.name) : formatValue(design.name)}
                 {currentMode === "edit" && " (Editing)"}
               </h2>
               <p className="text-xs text-white/70">
@@ -280,7 +281,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           Name
                         </div>
-                        {renderField("name", "Name", design.name)}
+                        {renderField("name", "Name", formData.name || design.name)}
                       </div>
                     )}
                     {design.email && (
@@ -311,7 +312,7 @@ export default function DesignUpdateModal({
                         {renderField(
                           "harnessbuild",
                           "Harness Build",
-                          design.harnessbuild,
+                          formData.harnessbuild || design.harnessbuild,
                         )}
                       </div>
                     )}
@@ -380,7 +381,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           Cards
                         </div>
-                        {renderField("cards", "Cards", design.cards)}
+                        {renderField("cards", "Cards", formData.cards || design.cards)}
                       </div>
                     )}
                     {design.hooks && (
@@ -388,7 +389,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           Hooks
                         </div>
-                        {renderField("hooks", "Hooks", design.hooks)}
+                        {renderField("hooks", "Hooks", formData.hooks || design.hooks)}
                       </div>
                     )}
                     {design.epi && (
@@ -396,7 +397,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           EPI
                         </div>
-                        {renderField("epi", "EPI", design.epi)}
+                        {renderField("epi", "EPI", formData.epi || design.epi)}
                       </div>
                     )}
                     {design.ppi && (
@@ -404,7 +405,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           PPI
                         </div>
-                        {renderField("ppi", "PPI", design.ppi)}
+                        {renderField("ppi", "PPI", formData.ppi || design.ppi)}
                       </div>
                     )}
                     {design.body_epi && (
@@ -412,7 +413,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           Body EPI
                         </div>
-                        {renderField("body_epi", "Body EPI", design.body_epi)}
+                        {renderField("body_epi", "Body EPI", formData.body_epi || design.body_epi)}
                       </div>
                     )}
                     {design.border_epi && (
@@ -423,7 +424,7 @@ export default function DesignUpdateModal({
                         {renderField(
                           "border_epi",
                           "Border EPI",
-                          design.border_epi,
+                          formData.border_epi || design.border_epi,
                         )}
                       </div>
                     )}
@@ -435,7 +436,7 @@ export default function DesignUpdateModal({
                         {renderField(
                           "total_hooks",
                           "Total Hooks",
-                          design.total_hooks,
+                          formData.total_hooks || design.total_hooks,
                         )}
                       </div>
                     )}
@@ -444,7 +445,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           BR Hooks
                         </div>
-                        {renderField("br_hooks", "BR Hooks", design.br_hooks)}
+                        {renderField("br_hooks", "BR Hooks", formData.br_hooks || design.br_hooks)}
                       </div>
                     )}
                     {design.by_hooks && (
@@ -452,7 +453,7 @@ export default function DesignUpdateModal({
                         <div className="text-[10px] text-gray-400 uppercase">
                           BY Hooks
                         </div>
-                        {renderField("by_hooks", "BY Hooks", design.by_hooks)}
+                        {renderField("by_hooks", "BY Hooks", formData.by_hooks || design.by_hooks)}
                       </div>
                     )}
                   </div>

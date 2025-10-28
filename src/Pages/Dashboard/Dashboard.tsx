@@ -24,6 +24,8 @@ interface DashboardData {
   todaySalesAmount: number;
   weeklySales: number;
   monthlySales: number;
+  thisMonthRevenue: number;
+  totalRevenueTillDate: number;
   soldDesigns: Array<{
     id: string;
     name: string;
@@ -86,6 +88,8 @@ const Dashboard = () => {
     todaySalesAmount: 0,
     weeklySales: 0,
     monthlySales: 0,
+    thisMonthRevenue: 0,
+    totalRevenueTillDate: 0,
     soldDesigns: [],
     topSoldDesigns: [],
     monthlyBreakdown: [],
@@ -130,7 +134,7 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const totalMonthlyRevenue = data.monthlyBreakdown.reduce(
+  const totalMonthlyRevenue = data.thisMonthRevenue || data.monthlyBreakdown.reduce(
     (total, month) => total + month.totalRevenue,
     0,
   );
@@ -140,12 +144,8 @@ const Dashboard = () => {
     0,
   );
 
-  const totalRevenueFromDesigns = data.soldDesigns.reduce(
-    (total, design) => total + design.final_price * design.timesSold,
-    0,
-  );
-
-  const totalRevenue = totalRevenueFromDesigns > 0 ? totalRevenueFromDesigns : totalMonthlyRevenue;
+  // Use the API's totalRevenueTillDate directly instead of calculating
+  const totalRevenue = data.totalRevenueTillDate;
 
   const salesDistributionData = [
     {
@@ -303,6 +303,17 @@ const Dashboard = () => {
               .filter((link) => link.target === index)
               .reduce((sum, link) => sum + link.value, 0);
 
+          // Format the value display based on the node type
+          const formatValue = (value: number, nodeName: string) => {
+            if (nodeName === "Total Revenue") {
+              return `₹${value.toLocaleString()}`;
+            } else if (nodeName === "Avg Price") {
+              return `₹${value.toFixed(0)}`;
+            } else {
+              return value.toLocaleString();
+            }
+          };
+
           return (
             <div
               key={index}
@@ -337,9 +348,7 @@ const Dashboard = () => {
                     fontWeight: "normal",
                   }}
                 >
-                  {index === 4 || index === 5 ? "₹" : ""}
-                  {nodeValue.toLocaleString()}
-                  {index <= 3 ? " units" : ""}
+                  {formatValue(nodeValue, node.name)}
                 </div>
               </div>
             </div>
