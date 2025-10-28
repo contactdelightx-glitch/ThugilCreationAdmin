@@ -26,6 +26,7 @@ export default function DesignUpdateModal({
     image_url: number;
     original_image_url: number;
   }>({ image_url: 0, original_image_url: 0 });
+  const [priceError, setPriceError] = useState<string>("");
 
   // Helper function to parse multiple image URLs
   const getImageUrls = (urlString: string): string[] => {
@@ -64,6 +65,40 @@ export default function DesignUpdateModal({
     };
   }, []);
 
+  // Validate prices whenever they change
+  useEffect(() => {
+    validatePrices();
+  }, [formData.final_price, formData.listing_rate]);
+
+  const validatePrices = () => {
+    const finalPrice = formData.final_price;
+    const listingRate = formData.listing_rate;
+
+    // Convert to numbers if they are strings
+    const finalPriceNum = typeof finalPrice === 'string' ? parseFloat(finalPrice) : finalPrice;
+    const listingRateNum = typeof listingRate === 'string' ? parseFloat(listingRate) : listingRate;
+
+    // Check if both prices are filled
+    if (finalPriceNum === undefined || finalPriceNum === null || listingRateNum === undefined || listingRateNum === null) {
+      setPriceError("Both listing price and final price are required");
+      return;
+    }
+
+    // Check if prices are valid numbers
+    if (isNaN(finalPriceNum) || isNaN(listingRateNum) || finalPriceNum < 0 || listingRateNum < 0) {
+      setPriceError("Prices must be valid positive numbers");
+      return;
+    }
+
+    // Check if final price is less than or equal to listing price
+    if (finalPriceNum > listingRateNum) {
+      setPriceError("Final price cannot be greater than listing price");
+      return;
+    }
+
+    setPriceError("");
+  };
+
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
@@ -77,10 +112,21 @@ export default function DesignUpdateModal({
   };
 
   const handleInputChange = (field: keyof Design, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    // Handle numeric fields
+    if (field === "final_price" || field === "listing_rate") {
+      // If value is empty string, set to undefined to clear the field
+      const numericValue = value === "" ? undefined : Number(value);
+      setFormData((prev) => ({
+        ...prev,
+        [field]: numericValue,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
+    
     // Reset image index for the changed field
     if (field === "image_url" || field === "original_image_url") {
       setImageIndices((prev) => ({
@@ -91,6 +137,15 @@ export default function DesignUpdateModal({
   };
 
   const handleSave = async () => {
+    // Final validation before saving
+    validatePrices();
+    if (priceError) {
+      if (onSuccess) {
+        onSuccess("Please fix price validation errors before saving.");
+      }
+      return;
+    }
+
     setSaving(true);
     try {
       const response = await updateDesign(design.id, formData);
@@ -112,25 +167,45 @@ export default function DesignUpdateModal({
   };
 
   const isEditable = (field: string) => {
-    // Updated: Now "name" is editable, removed from non-editable fields
     const nonEditableFields = ["email", "image_type", "saree_style", "label", "jacquard_type"];
     return currentMode === "edit" && !nonEditableFields.includes(field);
   };
 
   const renderField = (field: keyof Design, _label: string, value: any) => {
     if (isEditable(field)) {
+      if (field === "final_price" || field === "listing_rate") {
+        // For price fields, use empty string when value is undefined/null
+        const displayValue = formData[field] !== undefined ? formData[field] : "";
+        return (
+          <div>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={displayValue}
+              onChange={(e) => handleInputChange(field, e.target.value)}
+              className={`w-full border px-2 py-1 text-xs focus:ring-1 focus:outline-none sm:text-sm text-[var(--color-primary-dark)] ${
+                priceError ? "border-red-500 focus:border-red-500 focus:ring-red-500" : "border-gray-300 focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+              }`}
+              placeholder="Enter price"
+              required
+            />
+          </div>
+        );
+      }
+
       return (
         <input
           type="text"
           value={formData[field] || ""}
           onChange={(e) => handleInputChange(field, e.target.value)}
-          className="w-full border border-gray-300 px-2 py-1 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm"
+          className="w-full border border-gray-300 px-2 py-1 text-xs focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] focus:outline-none sm:text-sm text-[var(--color-primary-dark)]"
         />
       );
     }
 
     return (
-      <div className="text-xs font-medium break-words text-gray-900 sm:text-sm">
+      <div className="text-xs font-medium break-words sm:text-sm text-[var(--color-primary-dark)]">
         {value ? formatValue(value) : "-"}
       </div>
     );
@@ -140,6 +215,39 @@ export default function DesignUpdateModal({
   const sidebarImageUrls = getImageUrls(formData.image_url as string || design.image_url);
   const currentHeaderImageUrl = headerImageUrls[imageIndices.original_image_url] || design.original_image_url;
   const currentSidebarImageUrl = sidebarImageUrls[imageIndices.image_url] || design.image_url;
+
+  const displayFinalPrice = formData.final_price ?? design.final_price;
+  const displayListingRate = formData.listing_rate ?? design.listing_rate;
+
+  // Check if save should be disabled
+  const isSaveDisabled = () => {
+    if (saving) return true;
+    if (priceError) return true;
+    
+    // Check if both prices are filled
+    const finalPrice = formData.final_price;
+    const listingRate = formData.listing_rate;
+    
+    if (finalPrice === undefined || finalPrice === null || listingRate === undefined || listingRate === null) {
+      return true;
+    }
+
+    // Convert to numbers if they are strings
+    const finalPriceNum = typeof finalPrice === 'string' ? parseFloat(finalPrice) : finalPrice;
+    const listingRateNum = typeof listingRate === 'string' ? parseFloat(listingRate) : listingRate;
+
+    // Check if prices are valid numbers
+    if (isNaN(finalPriceNum) || isNaN(listingRateNum) || finalPriceNum < 0 || listingRateNum < 0) {
+      return true;
+    }
+
+    // Check if final price is greater than listing price
+    if (finalPriceNum > listingRateNum) {
+      return true;
+    }
+
+    return false;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
@@ -231,24 +339,43 @@ export default function DesignUpdateModal({
               )}
 
               <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
-                {(design.final_price || design.listing_rate) && (
-                  <div className="flex flex-1 items-center justify-center gap-2 bg-gradient-to-br from-[var(--color-primary-dark)] to-[var(--color-primary)] p-2 text-center text-white shadow-md transition-transform hover:scale-[1.02]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-semibold uppercase">
-                        Price:
-                      </span>
-                      {design.final_price && (
-                        <span className="text-sm font-bold tracking-tight sm:text-base">
-                          ₹{design.final_price}
-                        </span>
-                      )}
-                      {design.listing_rate &&
-                        design.listing_rate !== design.final_price && (
-                          <span className="text-[8px] line-through opacity-70">
-                            ₹{design.listing_rate}
+                {(displayFinalPrice || displayListingRate) && (
+                  <div className="flex flex-1 flex-col gap-2 bg-gradient-to-br from-[var(--color-primary-dark)] to-[var(--color-primary)] p-3 text-center text-white shadow-md">
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-semibold uppercase opacity-80">
+                        Pricing
+                      </div>
+                      {displayFinalPrice !== undefined && (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs">Final Price:</span>
+                          <span className="text-sm font-bold tracking-tight">
+                            ₹{displayFinalPrice}
                           </span>
-                        )}
+                        </div>
+                      )}
+                      {displayListingRate !== undefined && displayListingRate !== displayFinalPrice && (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs">Listing Rate:</span>
+                          <span className="text-xs line-through opacity-70">
+                            ₹{displayListingRate}
+                          </span>
+                        </div>
+                      )}
+                      {displayListingRate !== undefined && displayListingRate === displayFinalPrice && (
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs">Price:</span>
+                          <span className="text-sm font-bold tracking-tight">
+                            ₹{displayFinalPrice}
+                          </span>
+                        </div>
+                      )}
                     </div>
+                    
+                    {priceError && (
+                      <div className="mt-1 rounded bg-red-500/20 px-2 py-1">
+                        <p className="text-[10px] text-red-200">{priceError}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -267,68 +394,92 @@ export default function DesignUpdateModal({
             </div>
 
             <div className="space-y-3 p-3 md:col-span-2 md:space-y-5 md:p-5">
-              {(design.name ||
-                design.email ||
-                design.image_type ||
-                design.harnessbuild) && (
-                <div>
-                  <div className="mb-1 border-b border-[var(--color-primary-light)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary)] uppercase sm:text-xs">
-                    Basic Information
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:gap-y-3">
-                    {design.name && (
-                      <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Name
-                        </div>
-                        {renderField("name", "Name", formData.name || design.name)}
-                      </div>
-                    )}
-                    {design.email && (
-                      <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Email
-                        </div>
-                        {renderField("email", "Email", design.email)}
-                      </div>
-                    )}
-                    {design.image_type && (
-                      <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Image Type
-                        </div>
-                        {renderField(
-                          "image_type",
-                          "Image Type",
-                          design.image_type,
-                        )}
-                      </div>
-                    )}
-                    {design.harnessbuild && (
-                      <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
-                          Harness Build
-                        </div>
-                        {renderField(
-                          "harnessbuild",
-                          "Harness Build",
-                          formData.harnessbuild || design.harnessbuild,
-                        )}
-                      </div>
-                    )}
-                  </div>
+              {/* Basic Information */}
+              <div>
+                <div className="mb-1 border-b border-[var(--color-primary-dark)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary-dark)] uppercase sm:text-xs">
+                  Basic Information
                 </div>
-              )}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:gap-y-3">
+                  {design.name && (
+                    <div>
+                      <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-medium">
+                        Design Name
+                      </div>
+                      {renderField("name", "Design Name", formData.name || design.name)}
+                    </div>
+                  )}
+                  {design.email && (
+                    <div>
+                      <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-medium">
+                        Email
+                      </div>
+                      {renderField("email", "Email", design.email)}
+                    </div>
+                  )}
+                  {design.image_type && (
+                    <div>
+                      <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-medium">
+                        Image Type
+                      </div>
+                      {renderField(
+                        "image_type",
+                        "Image Type",
+                        design.image_type,
+                      )}
+                    </div>
+                  )}
+                  {design.harnessbuild && (
+                    <div>
+                      <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-medium">
+                        Harness Build
+                      </div>
+                      {renderField(
+                        "harnessbuild",
+                        "Harness Build",
+                        formData.harnessbuild || design.harnessbuild,
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Pricing fields */}
+                  {(design.listing_rate !== undefined || design.final_price !== undefined) && (
+                    <div className="col-span-2">
+                      <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-medium mb-2">
+                        Pricing
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {design.listing_rate !== undefined && (
+                          <div>
+                            <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
+                              Listing Price
+                            </div>
+                            {renderField("listing_rate", "Listing Price", displayListingRate)}
+                          </div>
+                        )}
+                        {design.final_price !== undefined && (
+                          <div>
+                            <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
+                              Final Price
+                            </div>
+                            {renderField("final_price", "Final Price", displayFinalPrice)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
+              {/* Style & Design */}
               {(design.saree_style || design.label || design.jacquard_type) && (
                 <div>
-                  <div className="mb-1 border-b border-[var(--color-primary-light)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary)] uppercase sm:text-xs">
+                  <div className="mb-1 border-b border-[var(--color-primary-dark)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary-dark)] uppercase sm:text-xs">
                     Style & Design
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:gap-y-3">
                     {design.saree_style && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Saree Style
                         </div>
                         {renderField(
@@ -340,7 +491,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.label && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Label
                         </div>
                         {renderField("label", "Label", design.label)}
@@ -348,7 +499,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.jacquard_type && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Jacquard Type
                         </div>
                         {renderField(
@@ -362,6 +513,7 @@ export default function DesignUpdateModal({
                 </div>
               )}
 
+              {/* Design Information */}
               {(design.cards ||
                 design.hooks ||
                 design.epi ||
@@ -372,13 +524,13 @@ export default function DesignUpdateModal({
                 design.br_hooks ||
                 design.by_hooks) && (
                 <div>
-                  <div className="mb-1 border-b border-[var(--color-primary-light)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary)] uppercase sm:text-xs">
+                  <div className="mb-1 border-b border-[var(--color-primary-dark)] pb-1 text-[10px] font-bold tracking-wider text-[var(--color-primary-dark)] uppercase sm:text-xs">
                     Design Information
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:gap-y-3">
                     {design.cards && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Cards
                         </div>
                         {renderField("cards", "Cards", formData.cards || design.cards)}
@@ -386,7 +538,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.hooks && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Hooks
                         </div>
                         {renderField("hooks", "Hooks", formData.hooks || design.hooks)}
@@ -394,7 +546,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.epi && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           EPI
                         </div>
                         {renderField("epi", "EPI", formData.epi || design.epi)}
@@ -402,7 +554,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.ppi && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           PPI
                         </div>
                         {renderField("ppi", "PPI", formData.ppi || design.ppi)}
@@ -410,7 +562,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.body_epi && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Body EPI
                         </div>
                         {renderField("body_epi", "Body EPI", formData.body_epi || design.body_epi)}
@@ -418,7 +570,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.border_epi && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Border EPI
                         </div>
                         {renderField(
@@ -430,7 +582,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.total_hooks && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           Total Hooks
                         </div>
                         {renderField(
@@ -442,7 +594,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.br_hooks && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           BR Hooks
                         </div>
                         {renderField("br_hooks", "BR Hooks", formData.br_hooks || design.br_hooks)}
@@ -450,7 +602,7 @@ export default function DesignUpdateModal({
                     )}
                     {design.by_hooks && (
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase">
+                        <div className="text-[10px] text-[var(--color-primary-dark)] uppercase font-semibold">
                           BY Hooks
                         </div>
                         {renderField("by_hooks", "BY Hooks", formData.by_hooks || design.by_hooks)}
@@ -468,7 +620,7 @@ export default function DesignUpdateModal({
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={isSaveDisabled()}
               className="inline-flex w-full justify-center items-center gap-2 rounded-md bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-dark)] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
             >
               <Save className="h-4 w-4" />
@@ -476,8 +628,12 @@ export default function DesignUpdateModal({
             </button>
             <button
               type="button"
-              onClick={() => setCurrentMode("view")}
-              className="mt-3 inline-flex w-full justify-center items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 transition-all hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm"
+              onClick={() => {
+                setCurrentMode("view");
+                setPriceError("");
+                setFormData(design);
+              }}
+              className="mt-3 inline-flex w-full justify-center items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-semibold text-[var(--color-primary-dark)] shadow-sm ring-1 ring-inset ring-gray-300 transition-all hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm"
             >
               <X className="h-4 w-4" />
               Cancel

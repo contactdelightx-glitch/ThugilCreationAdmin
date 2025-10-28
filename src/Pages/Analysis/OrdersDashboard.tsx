@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getFullReport } from "../../Api";
 import s3Service from "../../services/s3Service";
+
 interface OrderData {
   dashboard: {
     totalDesigns: number;
@@ -77,7 +78,7 @@ const OrdersDashboard = () => {
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [downloading, setDownloading] = useState<string | null>(null); // Add downloading state
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const fetchCustomerEmails = useCallback(async () => {
     try {
@@ -224,7 +225,6 @@ const OrdersDashboard = () => {
     target.src = "https://via.placeholder.com/80x80?text=No+Image";
   };
 
-  // UPDATED: Download image using S3 service - Alternative approach
   const downloadImage = async (
     imageUrl: string,
     productName: string,
@@ -232,22 +232,18 @@ const OrdersDashboard = () => {
   ) => {
     setDownloading(productId);
     try {
-      // Extract S3 key from the image URL
       const s3Key = s3Service.extractS3Key(imageUrl);
 
       if (!s3Key) {
         throw new Error("Invalid image URL");
       }
 
-      // Get filename from product name with proper extension
       const filename = `${productName.replace(/[^a-zA-Z0-9]/g, "_")}.jpg`;
 
-      // Method 1: Try the blob approach first
       try {
         await s3Service.downloadFile(s3Key, filename);
       } catch (blobError) {
         console.log("Blob method failed, trying direct method:", blobError);
-        // Fallback to direct method
         await s3Service.downloadFileDirect(s3Key, filename);
       }
     } catch (error) {
@@ -315,6 +311,9 @@ const OrdersDashboard = () => {
   };
 
   const truncateText = (text: string, maxLength: number) => {
+    if (typeof text !== 'string') {
+      return String(text || '');
+    }
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
   };
