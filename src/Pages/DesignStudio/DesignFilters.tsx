@@ -25,7 +25,6 @@ export default function DesignFilters({
   onShowFiltersChange,
   onClearFilters,
   hasActiveFilters,
-  designs,
   availableSareeStyles,
   loadingStyles,
 }: DesignFiltersProps) {
