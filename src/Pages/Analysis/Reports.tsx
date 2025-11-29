@@ -24,6 +24,7 @@ import {
   Activity,
   ArrowUpRight,
   Image,
+  Calendar,
 } from "lucide-react";
 import { getFullReport } from "../../Api";
 
@@ -31,6 +32,7 @@ interface ReportData {
   totalDesigns: number;
   totalOrders: number;
   totalRevenue: number;
+  thisMonthRevenue: number;
   totalCustomers: number;
   customerEmails: string[];
   userEmails: string[];
@@ -192,8 +194,8 @@ const Reports = () => {
         </div>
 
         {/* Metrics Grid Skeleton */}
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => (
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, index) => (
             <SkeletonCard key={`metric-${index}`} />
           ))}
         </div>
@@ -339,7 +341,7 @@ const Reports = () => {
         </div>
 
         {/* Metrics Grid */}
-        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-5">
+        <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:mb-6 lg:grid-cols-6">
           <MetricCard
             title="Total Designs"
             value={data.totalDesigns || 0}
@@ -365,6 +367,14 @@ const Reports = () => {
             subtitle="Gross sales"
           />
           <MetricCard
+            title="This Month Revenue"
+            value={`₹${(data.thisMonthRevenue || 0).toLocaleString("en-IN")}`}
+            icon={Calendar}
+            trend="up"
+            trendValue="+18%"
+            subtitle="Current month"
+          />
+          <MetricCard
             title="Customers"
             value={data.totalCustomers || 0}
             icon={Users}
@@ -373,7 +383,7 @@ const Reports = () => {
             subtitle="Active users"
           />
           <MetricCard
-            title="Monthly"
+            title="Monthly Sales"
             value={data.monthlySales || 0}
             icon={Activity}
             trend="up"

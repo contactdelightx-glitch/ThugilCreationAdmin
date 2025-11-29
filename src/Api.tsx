@@ -27,6 +27,16 @@ export async function createUser(
   });
 }
 
+export async function getSareeStyles(token: string) {
+  return fetch(`${API_BASE_URL}/designs/saree-styles`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+  });
+}
+
 export async function getAllUsers() {
   return fetch(`${API_BASE_URL}/user`, {
     method: "GET",

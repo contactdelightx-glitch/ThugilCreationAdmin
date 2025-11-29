@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Edit2, Trash2, Eye } from "lucide-react";
 import { Toast } from "flowbite-react";
-import { getDesignsWithFilters, deleteDesign } from "../../Api";
+import { getDesignsWithFilters, deleteDesign, getSareeStyles } from "../../Api";
 import DesignUpdateModal from "./DesignUpdateModal";
 import DesignFilters from "./DesignFilters";
 
@@ -73,6 +73,8 @@ export default function DesignList() {
   }>({});
   const [userEmail, setUserEmail] = useState<string>("");
   const [userType, setUserType] = useState<string>("tenant");
+  const [availableSareeStyles, setAvailableSareeStyles] = useState<string[]>([]);
+  const [loadingStyles, setLoadingStyles] = useState(false);
 
   // Get user email and type from localStorage on component mount
   useEffect(() => {
@@ -94,6 +96,36 @@ export default function DesignList() {
       setUserType(userTypeFromStorage);
     }
   }, []);
+
+  // Fetch available saree styles
+  const fetchSareeStyles = useCallback(async () => {
+    setLoadingStyles(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("No token found");
+        return;
+      }
+
+      const response = await getSareeStyles(token);
+      if (!response.ok) {
+        throw new Error("Failed to fetch saree styles");
+      }
+      
+      const data = await response.json();
+      if (data.success && data.saree_styles) {
+        setAvailableSareeStyles(data.saree_styles);
+      }
+    } catch (err) {
+      console.error("Error fetching saree styles:", err);
+    } finally {
+      setLoadingStyles(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSareeStyles();
+  }, [fetchSareeStyles]);
 
   const getImageUrls = (design: Design): string[] => {
     if (!design.original_image_url) {
@@ -166,7 +198,7 @@ export default function DesignList() {
         setLoading(false);
       }
     },
-    [itemsPerPage, filters, userEmail, userType], // Added userType to dependencies
+    [itemsPerPage, filters, userEmail, userType],
   );
 
   useEffect(() => {
@@ -287,6 +319,8 @@ export default function DesignList() {
   const handleEditSuccess = (message: string) => {
     setSuccessMessage(message);
     fetchDesigns(currentPage, itemsPerPage);
+    // Refresh saree styles after edit in case new styles were added
+    fetchSareeStyles();
   };
 
   const confirmDelete = async () => {
@@ -303,6 +337,8 @@ export default function DesignList() {
       fetchDesigns(currentPage, itemsPerPage);
       setIsDeleteModalOpen(false);
       setDesignToDelete(null);
+      // Refresh saree styles after delete
+      fetchSareeStyles();
     } catch {
       setSuccessMessage("Failed to delete design. Please try again.");
     } finally {
@@ -416,6 +452,8 @@ export default function DesignList() {
         onClearFilters={clearFilters}
         hasActiveFilters={hasActiveFilters}
         designs={designs}
+        availableSareeStyles={availableSareeStyles}
+        loadingStyles={loadingStyles}
       />
 
       {error && (
